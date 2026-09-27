@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Check, TriangleAlert } from "lucide-react";
 import * as api from "../api";
+import { LANGUAGES, useT, type Language } from "../i18n";
 import type { Settings } from "../types";
 
 const lines = (value: string) =>
@@ -12,10 +13,14 @@ const lines = (value: string) =>
 export function SettingsPanel({
   settings,
   save,
+  setLanguage,
 }: {
   settings: Settings;
   save: (next: Settings) => Promise<Settings>;
+  setLanguage: (language: Language) => void;
 }) {
+  const t = useT();
+  const l = t.settings;
   const [reviewHours, setReviewHours] = useState(String(settings.reviewHours));
   const [roots, setRoots] = useState(settings.projectRoots.join("\n"));
   const [binaries, setBinaries] = useState(settings.devBinaries.join(", "));
@@ -46,6 +51,7 @@ export function SettingsPanel({
     e.preventDefault();
     try {
       const saved = await save({
+        ...settings,
         reviewHours: Number(reviewHours),
         projectRoots: lines(roots),
         devBinaries: lines(binaries),
@@ -55,8 +61,8 @@ export function SettingsPanel({
         ok: true,
         text:
           saved.devBinaries.length || saved.projectRoots.length
-            ? "Réglages enregistrés. Le prochain relevé les applique."
-            : "Réglages enregistrés.",
+            ? l.savedNextScan
+            : l.saved,
       });
     } catch (error) {
       setStatus({ ok: false, text: String(error) });
@@ -72,16 +78,31 @@ export function SettingsPanel({
   const editorChoices =
     editor && !editors.includes(editor) ? [editor, ...editors] : editors;
   return (
-    <section className="settings-panel" aria-label="Réglages">
+    <section className="settings-panel" aria-label={l.label}>
       {!api.native && (
         <div className="notice warning-notice">
           <TriangleAlert aria-hidden="true" size={18} />
-          <p>Les réglages sont enregistrés par l’application Mac.</p>
+          <p>{l.webOnly}</p>
         </div>
       )}
+      <div className="field">
+        <label htmlFor="language">{l.language}</label>
+        <select
+          id="language"
+          value={settings.language}
+          onChange={(e) => setLanguage(e.target.value as Language)}
+        >
+          {LANGUAGES.map(({ id, name }) => (
+            <option key={id} value={id} lang={id}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <p>{l.languageText}</p>
+      </div>
       <form onSubmit={(e) => void submit(e)}>
         <div className="field">
-          <label htmlFor="review-hours">Délai avant « À vérifier »</label>
+          <label htmlFor="review-hours">{l.reviewHours}</label>
           <div className="field-inline">
             <input
               id="review-hours"
@@ -92,14 +113,12 @@ export function SettingsPanel({
               value={reviewHours}
               onChange={(e) => setReviewHours(e.target.value)}
             />
-            <span>heures</span>
+            <span>{l.hours}</span>
           </div>
-          <p>
-            Un serveur de développement actif depuis plus longtemps est signalé.
-          </p>
+          <p>{l.reviewHoursText}</p>
         </div>
         <div className="field">
-          <label htmlFor="project-roots">Dossiers de projets</label>
+          <label htmlFor="project-roots">{l.roots}</label>
           <textarea
             id="project-roots"
             rows={3}
@@ -107,44 +126,37 @@ export function SettingsPanel({
             placeholder={"~/code\n~/Developer"}
             onChange={(e) => setRoots(e.target.value)}
           />
-          <p>
-            Un dossier par ligne. Le premier sous-dossier donne le nom du
-            projet. Les dossiers GitHub restent reconnus.
-          </p>
+          <p>{l.rootsText}</p>
         </div>
         <div className="field">
-          <label htmlFor="dev-binaries">Autres serveurs de développement</label>
+          <label htmlFor="dev-binaries">{l.binaries}</label>
           <input
             id="dev-binaries"
             value={binaries}
-            placeholder="mysqld, rails, beam.smp"
+            placeholder="surreal, deno, beam.smp"
             onChange={(e) => setBinaries(e.target.value)}
           />
-          <p>
-            Noms de programmes séparés par des virgules, en plus de node,
-            python, ruby… Le moteur Docker et les services macOS restent
-            protégés.
-          </p>
+          <p>{l.binariesText}</p>
         </div>
         <div className="field">
-          <label htmlFor="editor">Éditeur</label>
+          <label htmlFor="editor">{l.editor}</label>
           <select
             id="editor"
             value={editor}
             onChange={(e) => setEditor(e.target.value)}
           >
-            <option value="">Aucun</option>
+            <option value="">{l.none}</option>
             {editorChoices.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
             ))}
           </select>
-          <p>Ajoute « Ouvrir dans l’éditeur » aux détails d’un service.</p>
+          <p>{l.editorText}</p>
         </div>
         <div className="settings-actions">
           <button className="primary-button" type="submit">
-            Enregistrer
+            {l.save}
           </button>
           {status && (
             <span
@@ -169,12 +181,9 @@ export function SettingsPanel({
             disabled={autostart === null}
             onChange={(e) => void toggleAutostart(e.target.checked)}
           />
-          Ouvrir Portlight à la connexion
+          {l.autostart}
         </label>
-        <p>
-          Portlight démarre dans la barre des menus, sans ouvrir de fenêtre.
-          Fermer la fenêtre garde Portlight dans la barre des menus.
-        </p>
+        <p>{l.autostartText}</p>
       </div>
     </section>
   );

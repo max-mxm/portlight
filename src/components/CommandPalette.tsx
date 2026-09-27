@@ -9,6 +9,7 @@ import {
 import type { Service, StopRequest } from "../types";
 import { paletteMatches, portQuery } from "../services";
 import { Modal } from "./Modal";
+import { useT } from "../i18n";
 export function CommandPalette({
   setPalette,
   paletteQuery,
@@ -24,6 +25,8 @@ export function CommandPalette({
   refresh: () => Promise<unknown>;
   setConfirm: (value: StopRequest) => void;
 }) {
+  const t = useT();
+  const p = t.palette;
   const port = portQuery(paletteQuery);
   const matches = paletteMatches(services, paletteQuery);
   const items = matches.filter(
@@ -36,7 +39,7 @@ export function CommandPalette({
     setConfirm({ service, force: false, scope: "service" });
   };
   return (
-    <Modal title="Actions rapides" wide onClose={() => setPalette(false)}>
+    <Modal title={p.title} wide onClose={() => setPalette(false)}>
       <div className="palette-search">
         <Search aria-hidden="true" size={19} />
         <input
@@ -54,8 +57,8 @@ export function CommandPalette({
               }
             }
           }}
-          placeholder="Chercher un service ou libérer un port (:3000)…"
-          aria-label="Chercher une action"
+          placeholder={p.placeholder}
+          aria-label={p.label}
         />
       </div>
       <div className="palette-items">
@@ -68,8 +71,8 @@ export function CommandPalette({
           >
             <RefreshCw aria-hidden="true" size={18} />
             <div>
-              <strong>Actualiser les services</strong>
-              <span>Faire un nouveau relevé de ce Mac</span>
+              <strong>{p.refresh}</strong>
+              <span>{p.refreshText}</span>
             </div>
             <kbd>⌘ R</kbd>
           </button>
@@ -79,13 +82,15 @@ export function CommandPalette({
             <Terminal aria-hidden="true" size={18} />
             <div>
               <strong>
-                {port !== null ? `Libérer le port :${port} · ` : "Arrêter "}
+                {port !== null ? p.freePort(port) : p.stop}
                 {s.name}
                 <span className="palette-ports">
-                  {s.ports.map((p) => `:${p}`).join(" ")}
+                  {s.ports.map((n) => `:${n}`).join(" ")}
                 </span>
               </strong>
-              <span>{s.project} · Demander un arrêt normal</span>
+              <span>
+                {s.project} · {p.stopText}
+              </span>
             </div>
             <ArrowRight aria-hidden="true" size={16} />
           </button>
@@ -93,24 +98,22 @@ export function CommandPalette({
         {holders.map((s) => (
           <p className="palette-empty palette-holder" key={s.id}>
             <Shield aria-hidden="true" size={16} />
-            Le port :{port} est utilisé par {s.name}, un service protégé.
+            {p.protectedHolder(port ?? 0, s.name)}
           </p>
         ))}
         {port !== null && !matches.length && (
           <p className="palette-empty palette-holder">
             <CircleCheck aria-hidden="true" size={16} />
-            Le port :{port} est libre.
+            {p.free(port)}
           </p>
         )}
         {port === null && !items.length && paletteQuery && (
-          <p className="palette-empty">
-            Aucun service pour « {paletteQuery} ».
-          </p>
+          <p className="palette-empty">{p.none(paletteQuery)}</p>
         )}
       </div>
       <div className="palette-footer">
-        <kbd>Tab</kbd> parcourir les actions <kbd>↵</kbd> sélectionner{" "}
-        <kbd>esc</kbd> fermer
+        <kbd>Tab</kbd> {p.browse} <kbd>↵</kbd> {p.select} <kbd>esc</kbd>{" "}
+        {p.close}
       </div>
     </Modal>
   );

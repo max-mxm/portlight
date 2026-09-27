@@ -1,3 +1,4 @@
+import type { Messages } from "./i18n";
 import type { Service, StopScope, View } from "./types";
 export const DEFAULT_REVIEW_HOURS = 8;
 export function isOld(s: Service, reviewHours = DEFAULT_REVIEW_HOURS) {
@@ -57,26 +58,37 @@ const NON_WEB_PORTS = new Set([
 export function isWebPort(port: number) {
   return !NON_WEB_PORTS.has(port);
 }
-export function duration(seconds: number) {
-  if (!seconds) return "—";
-  if (seconds < 60) return "< 1 min";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
+export function duration(seconds: number, t: Messages) {
+  const u = t.units;
+  if (!seconds) return u.none;
+  if (seconds < 60) return u.underMinute;
+  if (seconds < 3600) return u.minutes(Math.floor(seconds / 60));
   if (seconds < 86400)
-    return `${Math.floor(seconds / 3600)} h ${Math.floor((seconds % 3600) / 60)
-      .toString()
-      .padStart(2, "0")}`;
-  return `${Math.floor(seconds / 86400)} j ${Math.floor((seconds % 86400) / 3600)} h`;
+    return u.hours(
+      Math.floor(seconds / 3600),
+      Math.floor((seconds % 3600) / 60)
+        .toString()
+        .padStart(2, "0"),
+    );
+  return u.days(
+    Math.floor(seconds / 86400),
+    Math.floor((seconds % 86400) / 3600),
+  );
 }
-export function memory(bytes: number | null) {
-  if (bytes === null) return "—";
+export function memory(bytes: number | null, t: Messages) {
+  if (bytes === null) return t.units.none;
   const mb = bytes / 1024 / 1024;
-  if (mb < 1) return "< 1 Mo";
-  if (mb < 1024) return `${Math.round(mb)} Mo`;
-  return `${(mb / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} Go`;
+  if (mb < 1) return t.units.underMegabyte;
+  if (mb < 1024) return t.units.megabytes(Math.round(mb));
+  return t.units.gigabytes(
+    (mb / 1024).toLocaleString(t.locale, { maximumFractionDigits: 1 }),
+  );
 }
-export function cpu(percent: number | null) {
-  if (percent === null) return "—";
-  return `${percent.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
+export function cpu(percent: number | null, t: Messages) {
+  if (percent === null) return t.units.none;
+  return t.units.percent(
+    percent.toLocaleString(t.locale, { maximumFractionDigits: 1 }),
+  );
 }
 export function resistantKey(scope: StopScope, id: string) {
   return `${scope}:${id}`;
@@ -97,58 +109,58 @@ export function imageName(image: string | null) {
   const repository = withoutDigest.slice(withoutDigest.lastIndexOf("/") + 1);
   return repository.split(":")[0].toLowerCase() || null;
 }
+type ImageKind = keyof Messages["describe"]["images"];
 /** Common development images, matched on the repository name. */
-const IMAGES: [string, string][] = [
-  ["pgadmin", "Administration PostgreSQL"],
-  ["adminer", "Administration de base de données"],
-  ["postgres", "Base de données PostgreSQL"],
-  ["postgis", "Base de données PostgreSQL"],
-  ["timescale", "Base de données PostgreSQL"],
-  ["mysql", "Base de données MySQL"],
-  ["mariadb", "Base de données MariaDB"],
-  ["mongo", "Base de données MongoDB"],
-  ["clickhouse", "Base analytique ClickHouse"],
-  ["redis", "Cache Redis"],
-  ["valkey", "Cache Valkey"],
-  ["memcached", "Cache Memcached"],
-  ["mailpit", "Boîte mail de développement"],
-  ["mailhog", "Boîte mail de développement"],
-  ["maildev", "Boîte mail de développement"],
-  ["minio", "Stockage compatible S3"],
-  ["localstack", "Services AWS locaux"],
-  ["rabbitmq", "File de messages RabbitMQ"],
-  ["kafka", "Streaming Kafka"],
-  ["redpanda", "Streaming compatible Kafka"],
-  ["nats", "Messagerie NATS"],
-  ["elasticsearch", "Moteur de recherche"],
-  ["opensearch", "Moteur de recherche"],
-  ["meilisearch", "Moteur de recherche"],
-  ["typesense", "Moteur de recherche"],
-  ["keycloak", "Authentification Keycloak"],
-  ["powersync", "Synchronisation PowerSync"],
-  ["grafana", "Tableaux de bord Grafana"],
-  ["prometheus", "Métriques Prometheus"],
-  ["jaeger", "Traces distribuées"],
-  ["nginx", "Serveur web"],
-  ["caddy", "Serveur web"],
-  ["traefik", "Proxy inverse"],
+const IMAGES: [string, ImageKind][] = [
+  ["pgadmin", "pgadmin"],
+  ["adminer", "adminer"],
+  ["postgres", "postgres"],
+  ["postgis", "postgres"],
+  ["timescale", "postgres"],
+  ["mysql", "mysql"],
+  ["mariadb", "mariadb"],
+  ["mongo", "mongo"],
+  ["clickhouse", "clickhouse"],
+  ["redis", "redis"],
+  ["valkey", "valkey"],
+  ["memcached", "memcached"],
+  ["mailpit", "mail"],
+  ["mailhog", "mail"],
+  ["maildev", "mail"],
+  ["minio", "minio"],
+  ["localstack", "localstack"],
+  ["rabbitmq", "rabbitmq"],
+  ["kafka", "kafka"],
+  ["redpanda", "redpanda"],
+  ["nats", "nats"],
+  ["elasticsearch", "search"],
+  ["opensearch", "search"],
+  ["meilisearch", "search"],
+  ["typesense", "search"],
+  ["keycloak", "keycloak"],
+  ["powersync", "powersync"],
+  ["grafana", "grafana"],
+  ["prometheus", "prometheus"],
+  ["jaeger", "jaeger"],
+  ["nginx", "web"],
+  ["caddy", "web"],
+  ["traefik", "proxy"],
 ];
-export function serviceDescription(s: Service) {
+export function serviceDescription(s: Service, t: Messages) {
+  const d = t.describe;
   if (s.kind === "docker") {
     const name = imageName(s.image);
-    if (!name) return "Conteneur Docker";
-    return (
-      IMAGES.find(([pattern]) => name.includes(pattern))?.[1] ??
-      `Conteneur · ${name}`
-    );
+    if (!name) return d.container;
+    const kind = IMAGES.find(([pattern]) => name.includes(pattern))?.[1];
+    return kind ? d.images[kind] : d.containerOf(name);
   }
   return s.name === "Next.js"
-    ? "Application web · Next.js"
+    ? d.nextjs
     : s.name === "Vite"
-      ? "Application web · Vite"
+      ? d.vite
       : s.kind === "tool"
-        ? "Service interne d’un outil"
+        ? d.tool
         : s.kind === "system"
-          ? "Service macOS"
-          : "Serveur de développement";
+          ? d.system
+          : d.server;
 }

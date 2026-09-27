@@ -1,4 +1,4 @@
-use crate::model::Snapshot;
+use crate::{i18n::l, model::Snapshot, tr};
 use std::collections::BTreeSet;
 use tauri::{
     menu::{Menu, MenuBuilder, MenuEvent},
@@ -22,7 +22,7 @@ fn dev_ports(snapshot: &Snapshot) -> BTreeSet<u16> {
 fn menu(app: &AppHandle, snapshot: Option<&Snapshot>) -> tauri::Result<Menu<Wry>> {
     let mut builder = MenuBuilder::new(app);
     match snapshot {
-        None => builder = builder.text("status", "Relevé en cours…"),
+        None => builder = builder.text("status", l("Scanning…", "Relevé en cours…")),
         Some(snapshot) => {
             let ports = dev_ports(snapshot);
             let services: Vec<_> = snapshot
@@ -33,9 +33,20 @@ fn menu(app: &AppHandle, snapshot: Option<&Snapshot>) -> tauri::Result<Menu<Wry>
             builder = builder.text(
                 "status",
                 match ports.len() {
-                    0 => "Aucun port de développement occupé".to_string(),
-                    1 => "1 port de développement occupé".to_string(),
-                    n => format!("{n} ports de développement occupés"),
+                    0 => l(
+                        "No development port in use",
+                        "Aucun port de développement occupé",
+                    )
+                    .to_string(),
+                    1 => l(
+                        "1 development port in use",
+                        "1 port de développement occupé",
+                    )
+                    .to_string(),
+                    n => tr!(
+                        "{n} development ports in use",
+                        "{n} ports de développement occupés"
+                    ),
                 },
             );
             if !services.is_empty() {
@@ -43,22 +54,22 @@ fn menu(app: &AppHandle, snapshot: Option<&Snapshot>) -> tauri::Result<Menu<Wry>
             }
             for service in services.iter().take(MAX_ITEMS) {
                 let ports: Vec<String> = service.ports.iter().map(|p| format!(":{p}")).collect();
+                let (name, ports, project) = (&service.name, ports.join(" "), &service.project);
                 builder = builder.text(
                     format!("stop:{}", service.id),
-                    format!(
-                        "Arrêter {} {} — {}",
-                        service.name,
-                        ports.join(" "),
-                        service.project
+                    tr!(
+                        "Stop {name} {ports} — {project}",
+                        "Arrêter {name} {ports} — {project}"
                     ),
                 );
             }
             if services.len() > MAX_ITEMS {
+                let more = services.len() - MAX_ITEMS;
                 builder = builder.text(
                     "more",
-                    format!(
-                        "{} autres services dans Portlight…",
-                        services.len() - MAX_ITEMS
+                    tr!(
+                        "{more} more services in Portlight…",
+                        "{more} autres services dans Portlight…"
                     ),
                 );
             }
@@ -66,10 +77,10 @@ fn menu(app: &AppHandle, snapshot: Option<&Snapshot>) -> tauri::Result<Menu<Wry>
     }
     let menu = builder
         .separator()
-        .text("open", "Ouvrir Portlight")
-        .text("refresh", "Actualiser")
+        .text("open", l("Open Portlight", "Ouvrir Portlight"))
+        .text("refresh", l("Refresh", "Actualiser"))
         .separator()
-        .text("quit", "Quitter Portlight")
+        .text("quit", l("Quit Portlight", "Quitter Portlight"))
         .build()?;
     if let Some(status) = menu.get("status").and_then(|i| i.as_menuitem().cloned()) {
         status.set_enabled(false)?;
@@ -125,8 +136,9 @@ pub fn update(app: &AppHandle, snapshot: &Snapshot) {
     } else {
         ports.len().to_string()
     }));
-    let _ = tray.set_tooltip(Some(format!(
-        "Portlight — {} ports de développement",
-        ports.len()
+    let count = ports.len();
+    let _ = tray.set_tooltip(Some(tr!(
+        "Portlight — {count} development ports",
+        "Portlight — {count} ports de développement"
     )));
 }

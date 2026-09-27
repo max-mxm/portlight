@@ -1,5 +1,7 @@
+use crate::i18n::l;
 mod actions;
 mod docker;
+mod i18n;
 mod lineage;
 mod model;
 mod process;
@@ -36,7 +38,8 @@ fn store(app: &AppHandle, snapshot: &Snapshot) -> Result<(), String> {
     *app.state::<Inventory>()
         .snapshot
         .lock()
-        .map_err(|_| "Inventaire indisponible")? = Some(snapshot.clone());
+        .map_err(|_| l("Inventory unavailable", "Inventaire indisponible"))? =
+        Some(snapshot.clone());
     tray::update(app, snapshot);
     Ok(())
 }
@@ -45,11 +48,17 @@ fn find(state: &Inventory, id: &str) -> Result<Service, String> {
     state
         .snapshot
         .lock()
-        .map_err(|_| "Inventaire indisponible")?
+        .map_err(|_| l("Inventory unavailable", "Inventaire indisponible"))?
         .as_ref()
         .and_then(|s| s.services.iter().find(|s| s.id == id))
         .cloned()
-        .ok_or_else(|| "Service inconnu. Actualisez la liste.".into())
+        .ok_or_else(|| {
+            l(
+                "Unknown service. Refresh the list.",
+                "Service inconnu. Actualisez la liste.",
+            )
+            .into()
+        })
 }
 
 /// Scans outside the UI thread, then updates the tray and the window.
@@ -107,16 +116,20 @@ async fn stop_service(
         && !state
             .resistant
             .lock()
-            .map_err(|_| "État indisponible")?
+            .map_err(|_| l("State unavailable", "État indisponible"))?
             .contains(&key)
     {
-        return Err("Essayez d’abord un arrêt normal.".into());
+        return Err(l(
+            "Try a normal stop first.",
+            "Essayez d’abord un arrêt normal.",
+        )
+        .into());
     }
     let service = find(&state, &id)?;
     let inventory = state
         .snapshot
         .lock()
-        .map_err(|_| "Inventaire indisponible")?
+        .map_err(|_| l("Inventory unavailable", "Inventaire indisponible"))?
         .as_ref()
         .map(|s| s.services.clone())
         .unwrap_or_default();
@@ -125,7 +138,11 @@ async fn stop_service(
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
-        return Err("Un arrêt est déjà en cours. Patientez un instant.".into());
+        return Err(l(
+            "A stop is already in progress. Please wait a moment.",
+            "Un arrêt est déjà en cours. Patientez un instant.",
+        )
+        .into());
     }
     let result = tauri::async_runtime::spawn_blocking(move || {
         actions::stop(service, &inventory, force, scope)
@@ -135,7 +152,10 @@ async fn stop_service(
     .and_then(|result| result);
     state.stopping.store(false, Ordering::SeqCst);
     if let Ok(result) = &result {
-        let mut resistant = state.resistant.lock().map_err(|_| "État indisponible")?;
+        let mut resistant = state
+            .resistant
+            .lock()
+            .map_err(|_| l("State unavailable", "État indisponible"))?;
         if result.stopped {
             resistant.remove(&key);
         } else {
@@ -152,7 +172,7 @@ async fn open_port(
     state: tauri::State<'_, Inventory>,
 ) -> Result<(), String> {
     if !find(&state, &id)?.ports.contains(&port) {
-        return Err("Port absent de l’inventaire".into());
+        return Err(l("Port not in the inventory", "Port absent de l’inventaire").into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         process::output(
@@ -229,6 +249,8 @@ pub fn run() {
             set_autostart
         ])
         .setup(|app| {
+            // Applies the saved language before the menu bar is built.
+            settings::load();
             tray::create(app.handle())?;
             // Launched at login: stay in the menu bar until asked.
             if !std::env::args().any(|arg| arg == "--hidden") {
@@ -246,7 +268,7 @@ pub fn run() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("Impossible de lancer Portlight")
+        .expect("Unable to start Portlight")
         .run(|app, event| {
             if let RunEvent::Reopen { .. } = event {
                 tray::show_window(app);

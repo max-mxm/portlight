@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import type { RefObject } from "react";
 import type { Service, Snapshot, StopRequest, View } from "../types";
-import { views } from "../navigation";
 import { ServiceRow } from "./ServiceRow";
+import { useT } from "../i18n";
 interface Props {
   project: string;
   view: View;
@@ -49,16 +49,13 @@ export function ServicesPanel({
   open,
   reviewHours,
 }: Props) {
+  const t = useT();
+  const l = t.services;
   return (
-    <section className="services-panel" aria-label="Services en écoute">
+    <section className="services-panel" aria-label={l.label}>
       <div className="panel-toolbar">
         <div className="panel-title">
-          <h2>
-            {project ||
-              (view === "all"
-                ? "Services en cours"
-                : views.find((v) => v.id === view)?.name)}
-          </h2>
+          <h2>{project || (view === "all" ? l.running : t.views[view])}</h2>
           <span className="count-badge">{visible.length}</span>
         </div>
         <div className="toolbar-controls">
@@ -68,14 +65,11 @@ export function ServicesPanel({
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher un port, un projet…"
-              aria-label="Rechercher un service"
+              placeholder={l.search}
+              aria-label={l.searchLabel}
             />
             {query ? (
-              <button
-                onClick={() => setQuery("")}
-                aria-label="Effacer la recherche"
-              >
+              <button onClick={() => setQuery("")} aria-label={l.clearSearch}>
                 <X aria-hidden="true" size={14} />
               </button>
             ) : (
@@ -85,30 +79,30 @@ export function ServicesPanel({
           <label className="sort-select">
             <ArrowDownUp aria-hidden="true" size={15} />
             <select
-              aria-label="Trier les services"
+              aria-label={l.sortLabel}
               value={sort}
               onChange={(e) => setSort(e.target.value as typeof sort)}
             >
-              <option value="project">Par projet</option>
-              <option value="age">Plus anciens</option>
+              <option value="project">{l.byProject}</option>
+              <option value="age">{l.oldest}</option>
             </select>
             <ChevronDown aria-hidden="true" size={12} />
           </label>
         </div>
       </div>
-      <div role="table" aria-label="Ports et services">
+      <div role="table" aria-label={l.table}>
         <div className="table-heading" role="row">
-          <span role="columnheader">SERVICE</span>
-          <span role="columnheader">PORTS</span>
-          <span role="columnheader">ACTIF DEPUIS</span>
-          <span role="columnheader">ACCÈS</span>
-          <span role="columnheader">ACTIONS</span>
+          <span role="columnheader">{l.columns.service}</span>
+          <span role="columnheader">{l.columns.ports}</span>
+          <span role="columnheader">{l.columns.uptime}</span>
+          <span role="columnheader">{l.columns.access}</span>
+          <span role="columnheader">{l.columns.actions}</span>
         </div>
         {loading && !snapshot ? (
           <div className="empty-state">
             <RefreshCw aria-hidden="true" className="spin" size={24} />
-            <h3>Un instant, on fait le tour de votre Mac.</h3>
-            <p>Identification des ports, des projets et des conteneurs…</p>
+            <h3>{l.loadingTitle}</h3>
+            <p>{l.loadingText}</p>
           </div>
         ) : groups.length ? (
           groups.map(([p, items]) => (
@@ -116,9 +110,7 @@ export function ServicesPanel({
               <div className="group-heading">
                 <Folder aria-hidden="true" size={15} />
                 <strong>{p}</strong>
-                <span>
-                  {items.length} service{items.length > 1 ? "s" : ""}
-                </span>
+                <span>{l.count(items.length)}</span>
               </div>
               {items.map((s) => (
                 <ServiceRow
@@ -149,25 +141,25 @@ export function ServicesPanel({
             </div>
             <h3>
               {query
-                ? "Aucun service ne correspond."
+                ? l.noMatch
                 : !snapshot
-                  ? "Votre environnement, bientôt en clair."
+                  ? l.emptyTitle
                   : view === "old"
-                    ? "Tout est à jour."
-                    : "Aucun service dans cette vue."}
+                    ? l.upToDate
+                    : l.emptyView}
             </h3>
             <p>
               {query
-                ? "Essayez un numéro de port ou le nom d’un projet."
+                ? l.noMatchText
                 : !snapshot
-                  ? "Le premier relevé apparaîtra dès que l’application Mac sera ouverte."
+                  ? l.emptyText
                   : view === "old"
-                    ? `Aucun serveur de développement ne tourne depuis plus de ${reviewHours} heures.`
-                    : "Les nouveaux services apparaîtront au prochain relevé."}
+                    ? l.upToDateText(reviewHours)
+                    : l.emptyViewText}
             </p>
             {query && (
               <button className="secondary-button" onClick={() => setQuery("")}>
-                Effacer la recherche
+                {l.clearSearch}
               </button>
             )}
           </div>
@@ -175,13 +167,18 @@ export function ServicesPanel({
       </div>
       <div className="panel-footer">
         <span>
-          <ShieldCheck aria-hidden="true" size={14} /> Arrêt normal en priorité
-          · Services système protégés
+          <ShieldCheck aria-hidden="true" size={14} /> {l.safety}
         </span>
         <span>
           {snapshot
-            ? `Relevé à ${new Date(snapshot.scannedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
-            : "Aucun relevé"}
+            ? l.scannedAt(
+                new Date(snapshot.scannedAt).toLocaleTimeString(t.locale, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                }),
+              )
+            : l.noScan}
         </span>
       </div>
     </section>

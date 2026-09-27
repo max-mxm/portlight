@@ -29,3 +29,9 @@ Space Grotesk Variable pour l’interface ; JetBrains Mono Variable pour les don
 - CPU et mémoire apparaissent sous la durée d’activité, en petit et en couleur discrète, pour aider à trier « À vérifier » sans alourdir la table.
 - La barre des menus utilise une icône modèle monochrome (carré brutaliste et port central) et le nombre de ports occupés. Ses actions d’arrêt ouvrent la fenêtre et passent par la même confirmation.
 - Les réglages tiennent dans un seul panneau, champs à contour de 2 px, bouton principal violet. Les protections (moteur Docker, services macOS) sont rappelées à côté des champs qui pourraient les concerner.
+
+## Langues
+
+- Anglais par défaut, français disponible. Le choix est enregistré dans les réglages du backend : il s’applique aussi à la barre des menus, aux raisons de protection et aux messages d’arrêt.
+- Sélecteur `EN | FR` en police mono dans la barre latérale, sur la même rangée que le thème (icônes seules, nom en infobulle et pour les lecteurs d’écran), pour laisser la place à la liste des projets à 820 px de hauteur. Le choix est aussi proposé dans les réglages.
+- Les nombres, heures et dates suivent la langue (`12.3%` / `12,3 %`, `MB` / `Mo`, `d` / `j`).

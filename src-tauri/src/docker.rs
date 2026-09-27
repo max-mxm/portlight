@@ -1,3 +1,5 @@
+use crate::i18n::l;
+use crate::tr;
 use crate::{
     model::Service,
     process::{output, run},
@@ -76,7 +78,7 @@ fn inspect(bin: &str, ids: &[&str]) -> Result<HashMap<String, Details>, String> 
 
 /// Whether the inventoried container (same ID and start time) still runs.
 pub fn running(id: &str, started: &str) -> Result<bool, String> {
-    let bin = binary().ok_or("Docker indisponible")?;
+    let bin = binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
     Ok(inspect(&bin, &[id])?
         .get(id)
         .is_some_and(|d| d.running && d.started == started))
@@ -89,7 +91,12 @@ fn parse_inspect(text: &str) -> Result<HashMap<String, Details>, String> {
             // Missing labels are encoded as empty strings by Docker's template engine.
             serde_json::from_str::<Details>(line)
                 .map(|d| (d.id.clone(), d))
-                .map_err(|e| format!("Métadonnées Docker invalides : {e}"))
+                .map_err(|e| {
+                    tr!(
+                        "Invalid Docker metadata: {e}",
+                        "Métadonnées Docker invalides : {e}"
+                    )
+                })
         })
         .collect()
 }
@@ -139,14 +146,19 @@ fn rows(bin: &str, filter: Option<&str>) -> Result<Vec<Row>, String> {
     text.lines()
         .filter(|s| !s.is_empty())
         .map(|line| {
-            serde_json::from_str(line).map_err(|e| format!("Réponse Docker invalide : {e}"))
+            serde_json::from_str(line).map_err(|e| {
+                tr!(
+                    "Invalid Docker response: {e}",
+                    "Réponse Docker invalide : {e}"
+                )
+            })
         })
         .collect()
 }
 
 /// Every running container of a Compose project, ports or not: (id, name).
 pub fn compose_containers(project: &str) -> Result<Vec<(String, String)>, String> {
-    let bin = binary().ok_or("Docker indisponible")?;
+    let bin = binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
     let mut items: Vec<(String, String)> = rows(&bin, Some(project))?
         .into_iter()
         .filter(|row| row.compose == project)
@@ -157,7 +169,7 @@ pub fn compose_containers(project: &str) -> Result<Vec<(String, String)>, String
 }
 
 pub fn list(roots: &[String]) -> Result<Vec<Service>, String> {
-    let bin = binary().ok_or("Docker n’est pas installé")?;
+    let bin = binary().ok_or(l("Docker is not installed", "Docker n’est pas installé"))?;
     let rows = rows(&bin, None)?;
     let mut compose: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for row in rows.iter().filter(|r| !r.compose.is_empty()) {

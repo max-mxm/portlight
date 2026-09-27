@@ -1,3 +1,5 @@
+use crate::i18n::l;
+use crate::tr;
 use crate::{
     docker, lineage,
     model::{Service, Snapshot},
@@ -101,8 +103,11 @@ fn listeners() -> Result<(BTreeMap<u32, Listener>, Vec<String>), String> {
     ) {
         Ok(text) => parse_netstat(&text, &mut result),
         Err(_) => warnings.push(
-            "Certains ports système peuvent ne pas être visibles sans droits administrateur."
-                .into(),
+            l(
+                "Some system ports may not be visible without administrator rights.",
+                "Certains ports système peuvent ne pas être visibles sans droits administrateur.",
+            )
+            .into(),
         ),
     }
     Ok((result, warnings))
@@ -279,12 +284,22 @@ pub fn classify(
         },
         stoppable: !protected,
         reason: protected.then_some(match daemon {
-            _ if is_docker => "Le moteur de conteneurs est protégé. Arrêtez le conteneur concerné.",
-            Some("Gradle") => {
-                "Démon Gradle protégé : lancez ./gradlew --stop depuis le projet pour l’arrêter."
-            }
-            Some(_) => "Démon d’outil de build protégé : arrêtez-le depuis son outil.",
-            None => "Outil ou service système protégé : fermez-le depuis son application.",
+            _ if is_docker => l(
+                "The container engine is protected. Stop the relevant container.",
+                "Le moteur de conteneurs est protégé. Arrêtez le conteneur concerné.",
+            ),
+            Some("Gradle") => l(
+                "Protected Gradle daemon: run ./gradlew --stop from the project to stop it.",
+                "Démon Gradle protégé : lancez ./gradlew --stop depuis le projet pour l’arrêter.",
+            ),
+            Some(_) => l(
+                "Protected build tool daemon: stop it from its tool.",
+                "Démon d’outil de build protégé : arrêtez-le depuis son outil.",
+            ),
+            None => l(
+                "Protected tool or system service: quit it from its application.",
+                "Outil ou service système protégé : fermez-le depuis son application.",
+            ),
         }),
     }
 }
@@ -335,7 +350,10 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
         Ok(items) => (items, true),
         Err(error) => {
             if docker::binary().is_some() {
-                warnings.push(format!("Docker indisponible : {error}"));
+                warnings.push(tr!(
+                    "Docker unavailable: {error}",
+                    "Docker indisponible : {error}"
+                ));
             }
             (vec![], false)
         }
@@ -377,7 +395,7 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
         );
         let daemon = daemon(&meta.command);
         let name = if let Some(tool) = daemon {
-            format!("Démon {tool}")
+            tr!("{tool} daemon", "Démon {tool}")
         } else if let Some(framework) = framework(&meta.command) {
             framework.into()
         } else {
@@ -599,7 +617,7 @@ tcp4       0      0  127.0.0.1.50000        127.0.0.1.3000         ESTABLISHED  
             false,
         );
         assert!(!docker.stoppable);
-        assert!(docker.reason.unwrap().contains("moteur de conteneurs"));
+        assert!(docker.reason.unwrap().contains("container engine"));
         let other_user = classify("postgres", "postgres -D /x", 0, 501, false, &[], false);
         assert_eq!((other_user.kind, other_user.stoppable), ("process", false));
         let native = classify(

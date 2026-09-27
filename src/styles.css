@@ -333,6 +333,29 @@ kbd {
   font-size: 12px;
   color: #d3d5e9;
 }
+.sidebar-switches {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 8px;
+}
+.sidebar-switches .theme-switch {
+  margin-bottom: 0;
+}
+.language-switch {
+  grid-template-columns: repeat(2, 1fr);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.language-switch button {
+  font-family: "JetBrains Mono Variable", monospace;
+  letter-spacing: 0.04em;
+}
 .theme-switch button:first-child {
   border-left: 0;
 }
@@ -1419,6 +1442,9 @@ input::placeholder {
   box-shadow: var(--hard-shadow);
   padding: 24px;
   max-width: 760px;
+}
+.settings-panel > .field:not(.toggle-field) {
+  margin-bottom: 24px;
 }
 .settings-panel form {
   display: flex;

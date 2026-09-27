@@ -1,5 +1,6 @@
 import { ArrowRight, Box, Clock3, Radio, Terminal } from "lucide-react";
 import type { Service, Snapshot, View } from "../types";
+import { useT } from "../i18n";
 interface Props {
   snapshot: Snapshot | null;
   ports: Set<number>;
@@ -18,41 +19,43 @@ export function Overview({
   navigate,
   reviewHours,
 }: Props) {
+  const t = useT();
+  const o = t.overview;
   return (
     <>
-      <section className="stats" aria-label="Résumé de l’environnement">
+      <section className="stats" aria-label={o.summary}>
         <button className="stat" onClick={() => navigate("all")}>
           <span className="stat-label">
-            Ports utilisés
+            {o.portsUsed}
             <Radio aria-hidden="true" size={17} />
           </span>
           <div className="stat-value">
             {snapshot ? ports.size : "—"}
-            <span className="stat-note">en développement</span>
+            <span className="stat-note">{o.inDevelopment}</span>
           </div>
         </button>
         <button className="stat" onClick={() => navigate("process")}>
           <span className="stat-label">
-            Serveurs actifs
+            {o.activeServers}
             <Terminal aria-hidden="true" size={17} />
           </span>
           <div className="stat-value">
             {snapshot
               ? services.filter((s) => s.kind === "process").length
               : "—"}
-            <span className="stat-note">processus locaux</span>
+            <span className="stat-note">{o.localProcesses}</span>
           </div>
         </button>
         <button className="stat" onClick={() => navigate("docker")}>
           <span className="stat-label">
-            Conteneurs Docker
+            {o.containers}
             <Box aria-hidden="true" size={17} />
           </span>
           <div className="stat-value">
             {snapshot
               ? services.filter((s) => s.kind === "docker").length
               : "—"}
-            <span className="stat-note">avec ports publiés</span>
+            <span className="stat-note">{o.withPorts}</span>
           </div>
         </button>
         <button
@@ -60,14 +63,12 @@ export function Overview({
           onClick={() => navigate("old")}
         >
           <span className="stat-label">
-            À vérifier
+            {o.toReview}
             <Clock3 aria-hidden="true" size={17} />
           </span>
           <div className="stat-value">
             {snapshot ? oldServices.length : "—"}
-            <span className="stat-note">
-              actifs depuis + de {reviewHours} h
-            </span>
+            <span className="stat-note">{o.runningFor(reviewHours)}</span>
           </div>
         </button>
       </section>
@@ -77,18 +78,11 @@ export function Overview({
             <Clock3 aria-hidden="true" size={20} />
           </div>
           <div>
-            <strong>
-              {oldServices.length === 1
-                ? "Un serveur tourne"
-                : `${oldServices.length} serveurs tournent`}{" "}
-              depuis plus de {reviewHours} heures.
-            </strong>
-            <span>
-              Un terminal fermé ne signifie pas toujours un serveur arrêté.
-            </span>
+            <strong>{o.banner(oldServices.length, reviewHours)}</strong>
+            <span>{o.bannerText}</span>
           </div>
           <span className="review-action">
-            Vérifier
+            {o.review}
             <ArrowRight aria-hidden="true" size={16} />
           </span>
         </button>

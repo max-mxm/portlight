@@ -1,3 +1,5 @@
+use crate::i18n::l;
+use crate::tr;
 use crate::{
     docker, lineage,
     model::{ProcessSummary, Service, StopResult},
@@ -26,7 +28,7 @@ impl Scope {
             "service" => Ok(Self::Service),
             "group" => Ok(Self::Group),
             "compose" => Ok(Self::Compose),
-            _ => Err("Type d’arrêt inconnu".into()),
+            _ => Err(l("Unknown stop type", "Type d’arrêt inconnu").into()),
         }
     }
 }
@@ -61,7 +63,9 @@ pub fn stop(
     scope: Scope,
 ) -> Result<StopResult, String> {
     if !service.stoppable {
-        return Err(service.reason.unwrap_or("Service protégé".into()));
+        return Err(service
+            .reason
+            .unwrap_or(l("Protected service", "Service protégé").into()));
     }
     let running = match &service.container_id {
         Some(id) => docker::running(id, &service.identity)?,
@@ -73,9 +77,9 @@ pub fn stop(
         return Ok(StopResult {
             stopped: true,
             message: if remaining_ports.is_empty() {
-                "Ce service ne tourne plus. Ses ports sont libérés."
+                l("This service is no longer running. Its ports are free.", "Ce service ne tourne plus. Ses ports sont libérés.")
             } else {
-                "Ce service ne tourne plus, mais ses ports sont utilisés par un autre processus."
+                l("This service is no longer running, but another process uses its ports.", "Ce service ne tourne plus, mais ses ports sont utilisés par un autre processus.")
             }
             .into(),
             remaining_ports,
@@ -91,9 +95,13 @@ pub fn stop(
 fn stop_service(service: &Service, force: bool) -> Result<StopResult, String> {
     let still_running = if let Some(id) = &service.container_id {
         if force {
-            return Err("L’arrêt forcé des conteneurs n’est pas proposé.".into());
+            return Err(l(
+                "Force stop is not available for containers.",
+                "L’arrêt forcé des conteneurs n’est pas proposé.",
+            )
+            .into());
         }
-        let bin = docker::binary().ok_or("Docker indisponible")?;
+        let bin = docker::binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
         process::output(&bin, &["stop", "--time", "5", id], Duration::from_secs(12))?;
         docker::running(id, &service.identity)?
     } else {
@@ -102,11 +110,20 @@ fn stop_service(service: &Service, force: bool) -> Result<StopResult, String> {
     let ports = service.ports.iter().copied().collect();
     let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
     let message = if still_running {
-        "Le processus résiste à l’arrêt normal. Vous pouvez forcer son arrêt."
+        l(
+            "The process resists the normal stop. You can force it to stop.",
+            "Le processus résiste à l’arrêt normal. Vous pouvez forcer son arrêt.",
+        )
     } else if !remaining_ports.is_empty() {
-        "Service arrêté, mais un processus utilise encore certains de ses ports."
+        l(
+            "Service stopped, but a process still uses some of its ports.",
+            "Service arrêté, mais un processus utilise encore certains de ses ports.",
+        )
     } else {
-        "Service arrêté. Ses ports sont libérés."
+        l(
+            "Service stopped. Its ports are free.",
+            "Service arrêté. Ses ports sont libérés.",
+        )
     };
     Ok(StopResult {
         stopped: !still_running,
@@ -124,7 +141,11 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
     for member in members {
         let owned = table.get(&member.pid).is_some_and(|p| p.uid == uid);
         if !owned || !alive(&table, member.pid, &member.identity) {
-            return Err("L’identité du processus a changé. Actualisez la liste.".into());
+            return Err(l(
+                "The process identity has changed. Refresh the list.",
+                "L’identité du processus a changé. Actualisez la liste.",
+            )
+            .into());
         }
     }
     let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
@@ -133,7 +154,7 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
         if unsafe { libc::kill(member.pid as i32, signal) } != 0 {
             let error = std::io::Error::last_os_error();
             if error.raw_os_error() != Some(libc::ESRCH) {
-                return Err(format!("Arrêt refusé : {error}"));
+                return Err(tr!("Stop refused: {error}", "Arrêt refusé : {error}"));
             }
         }
     }
@@ -154,7 +175,11 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
 
 fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
     let Some(shown) = service.launch_group.first() else {
-        return Err("Ce service n’a pas de lanceur qui peut être arrêté sans risque.".into());
+        return Err(l(
+            "This service has no launcher that can be stopped safely.",
+            "Ce service n’a pas de lanceur qui peut être arrêté sans risque.",
+        )
+        .into());
     };
     // Recompute the group from the current process table.
     let table = process::table()?;
@@ -170,7 +195,11 @@ fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
         .first()
         .is_none_or(|root| root.pid != shown.pid || root.identity != shown.identity)
     {
-        return Err("Le lanceur de ce service a changé. Actualisez la liste.".into());
+        return Err(l(
+            "The launcher of this service has changed. Refresh the list.",
+            "Le lanceur de ce service a changé. Actualisez la liste.",
+        )
+        .into());
     }
     let survivors = signal_all(&group, force)?;
     let ports: BTreeSet<u16> = service
@@ -181,11 +210,20 @@ fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
         .collect();
     let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
     let message = if !survivors.is_empty() {
-        "Certains processus résistent à l’arrêt normal. Vous pouvez forcer leur arrêt."
+        l(
+            "Some processes resist the normal stop. You can force them to stop.",
+            "Certains processus résistent à l’arrêt normal. Vous pouvez forcer leur arrêt.",
+        )
     } else if !remaining_ports.is_empty() {
-        "Processus arrêtés, mais certains ports sont encore utilisés."
+        l(
+            "Processes stopped, but some ports are still in use.",
+            "Processus arrêtés, mais certains ports sont encore utilisés.",
+        )
     } else {
-        "Le lanceur et ses processus sont arrêtés. Les ports sont libérés."
+        l(
+            "The launcher and its processes are stopped. The ports are free.",
+            "Le lanceur et ses processus sont arrêtés. Les ports sont libérés.",
+        )
     };
     Ok(StopResult {
         stopped: survivors.is_empty(),
@@ -200,17 +238,29 @@ fn stop_compose(
     force: bool,
 ) -> Result<StopResult, String> {
     if force {
-        return Err("L’arrêt forcé des conteneurs n’est pas proposé.".into());
+        return Err(l(
+            "Force stop is not available for containers.",
+            "L’arrêt forcé des conteneurs n’est pas proposé.",
+        )
+        .into());
     }
     let Some(project) = service.compose_project.as_deref() else {
-        return Err("Ce conteneur n’appartient pas à un projet Compose.".into());
+        return Err(l(
+            "This container does not belong to a Compose project.",
+            "Ce conteneur n’appartient pas à un projet Compose.",
+        )
+        .into());
     };
     let containers = docker::compose_containers(project)?;
     let names: Vec<&str> = containers.iter().map(|(_, n)| n.as_str()).collect();
     if names != service.compose_containers {
-        return Err("Les conteneurs du projet ont changé. Actualisez la liste.".into());
+        return Err(l(
+            "The project’s containers have changed. Refresh the list.",
+            "Les conteneurs du projet ont changé. Actualisez la liste.",
+        )
+        .into());
     }
-    let bin = docker::binary().ok_or("Docker indisponible")?;
+    let bin = docker::binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
     let mut args = vec!["stop", "--time", "5"];
     args.extend(containers.iter().map(|(id, _)| id.as_str()));
     process::output(&bin, &args, Duration::from_secs(30))?;
@@ -225,11 +275,20 @@ fn stop_compose(
     Ok(StopResult {
         stopped: !still_running,
         message: if still_running {
-            "Certains conteneurs du projet tournent encore."
+            l(
+                "Some containers of the project are still running.",
+                "Certains conteneurs du projet tournent encore.",
+            )
         } else if !remaining_ports.is_empty() {
-            "Projet Compose arrêté, mais certains ports sont encore utilisés."
+            l(
+                "Compose project stopped, but some ports are still in use.",
+                "Projet Compose arrêté, mais certains ports sont encore utilisés.",
+            )
         } else {
-            "Projet Compose arrêté. Ses ports sont libérés."
+            l(
+                "Compose project stopped. Its ports are free.",
+                "Projet Compose arrêté. Ses ports sont libérés.",
+            )
         }
         .into(),
         remaining_ports,
@@ -274,21 +333,28 @@ pub fn editors() -> Vec<String> {
 /// Finder or in a known editor. `open` receives structured arguments.
 pub fn open_folder(service: &Service, editor: Option<&str>) -> Result<String, String> {
     if service.cwd.is_empty() || service.cwd == "/" {
-        return Err("Dossier du projet non disponible".into());
+        return Err(l(
+            "Project folder unavailable",
+            "Dossier du projet non disponible",
+        )
+        .into());
     }
     let folder = project::root(&service.cwd)
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|| service.cwd.clone());
     if !Path::new(&folder).is_dir() {
-        return Err("Ce dossier n’existe plus".into());
+        return Err(l("This folder no longer exists", "Ce dossier n’existe plus").into());
     }
     let app = match editor {
         Some(name) => {
             let (_, bundle) = EDITORS
                 .iter()
                 .find(|(n, _)| *n == name)
-                .ok_or("Éditeur inconnu")?;
-            Some(editor_path(bundle).ok_or("Cet éditeur n’est pas installé")?)
+                .ok_or(l("Unknown editor", "Éditeur inconnu"))?;
+            Some(editor_path(bundle).ok_or(l(
+                "This editor is not installed",
+                "Cet éditeur n’est pas installé",
+            ))?)
         }
         None => None,
     };

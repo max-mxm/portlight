@@ -13,6 +13,7 @@ import {
   visibleServices,
 } from "./services";
 import { fixture } from "./test/fixture";
+import { en, fr } from "./i18n/messages";
 describe("Recherche et périmètre des actions", () => {
   it("recherche un port et distingue les services protégés", () => {
     const list = [
@@ -44,16 +45,19 @@ describe("Recherche et périmètre des actions", () => {
     );
   });
   it("formate les durées sans arrondi trompeur", () => {
-    expect(duration(151028)).toBe("1 j 17 h");
-    expect(duration(36060)).toBe("10 h 01");
+    expect(duration(151028, en)).toBe("1 d 17 h");
+    expect(duration(36060, en)).toBe("10 h 01");
+    expect(duration(151028, fr)).toBe("1 j 17 h");
   });
   it("formate les ressources", () => {
-    expect(memory(null)).toBe("—");
-    expect(memory(512 * 1024)).toBe("< 1 Mo");
-    expect(memory(180 * 1024 * 1024)).toBe("180 Mo");
-    expect(memory(1.5 * 1024 ** 3)).toBe("1,5 Go");
-    expect(cpu(12.25)).toBe("12,3 %");
-    expect(cpu(null)).toBe("—");
+    expect(memory(null, en)).toBe("—");
+    expect(memory(512 * 1024, en)).toBe("< 1 MB");
+    expect(memory(180 * 1024 * 1024, en)).toBe("180 MB");
+    expect(memory(1.5 * 1024 ** 3, en)).toBe("1.5 GB");
+    expect(memory(1.5 * 1024 ** 3, fr)).toBe("1,5 Go");
+    expect(cpu(12.25, en)).toBe("12.3%");
+    expect(cpu(12.25, fr)).toBe("12,3 %");
+    expect(cpu(null, en)).toBe("—");
   });
 });
 
@@ -83,24 +87,25 @@ describe("Palette et ports", () => {
 
 describe("Description des conteneurs", () => {
   const container = (image: string | null, name = "app-1") =>
-    serviceDescription(fixture({ kind: "docker", image, name }));
+    serviceDescription(fixture({ kind: "docker", image, name }), en);
   it("se base sur l’image, pas sur le nom du conteneur", () => {
-    expect(container("postgres:16-alpine")).toBe("Base de données PostgreSQL");
-    expect(container("bitnami/postgresql:17")).toBe(
-      "Base de données PostgreSQL",
-    );
-    expect(container("axllent/mailpit:latest")).toBe(
-      "Boîte mail de développement",
-    );
+    expect(container("postgres:16-alpine")).toBe("PostgreSQL database");
+    expect(container("bitnami/postgresql:17")).toBe("PostgreSQL database");
+    expect(container("axllent/mailpit:latest")).toBe("Development mailbox");
     expect(container("journeyapps/powersync-service:latest")).toBe(
-      "Synchronisation PowerSync",
+      "PowerSync sync",
     );
-    expect(container("dpage/pgadmin4")).toBe("Administration PostgreSQL");
+    expect(container("dpage/pgadmin4")).toBe("PostgreSQL administration");
     // Before, a name containing "pg-storage" was enough.
     expect(container("ghcr.io/acme/api:1.2", "pg-storage-1")).toBe(
-      "Conteneur · api",
+      "Container · api",
     );
-    expect(container(null)).toBe("Conteneur Docker");
+    expect(container(null)).toBe("Docker container");
+  });
+  it("se traduit en français", () => {
+    expect(
+      serviceDescription(fixture({ kind: "docker", image: "postgres:18" }), fr),
+    ).toBe("Base de données PostgreSQL");
   });
   it("extrait le nom du dépôt de l’image", () => {
     expect(imageName("registry:5000/team/redis:7@sha256:abc")).toBe("redis");

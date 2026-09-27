@@ -52,6 +52,7 @@ export interface Settings {
   projectRoots: string[];
   devBinaries: string[];
   editor: string | null;
+  language: "en" | "fr";
 }
 /** service: the listener only · group: its launcher and descendants · compose: the whole Compose project */
 export type StopScope = "service" | "group" | "compose";

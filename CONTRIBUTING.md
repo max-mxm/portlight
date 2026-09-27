@@ -1,10 +1,11 @@
 # Contribuer à Portlight
 
-Portlight est une application macOS locale, en français, construite avec Tauri 2, Rust, React et TypeScript. Voir le [README](README.md) pour l’installation.
+Portlight est une application macOS locale, en anglais par défaut et disponible en français, construite avec Tauri 2, Rust, React et TypeScript. Voir le [README](README.md) pour l’installation.
 
 ## Développement
 
 - Lire [AGENTS.md](AGENTS.md) et [les décisions de design](docs/design-decisions.md).
+- Tout texte visible passe par `src/i18n/messages.ts` (anglais, puis français) ou par `l()` / `tr!` dans `src-tauri/src/i18n.rs`. Aucun texte en dur dans les composants.
 - Conserver la séparation entre inventaire, métadonnées Docker, actions, IPC et interface.
 - Préserver le fonctionnement sans serveur en production et l’exécution système sans shell.
 - Revalider l’identité des processus avant tout signal ; préserver les protections système.

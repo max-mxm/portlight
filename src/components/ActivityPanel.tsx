@@ -1,5 +1,6 @@
 import { Check, History, TriangleAlert } from "lucide-react";
 import type { Activity } from "../types";
+import { useT } from "../i18n";
 export function ActivityPanel({
   activity,
   onClear,
@@ -7,14 +8,15 @@ export function ActivityPanel({
   activity: Activity[];
   onClear: () => void;
 }) {
+  const t = useT();
   return (
     <section className="history-panel">
       <div className="panel-toolbar">
-        <h2>Journal des arrêts</h2>
+        <h2>{t.history.title}</h2>
         <span className="count-badge">{activity.length}</span>
         {activity.length > 0 && (
           <button className="text-button" onClick={onClear}>
-            Effacer l’historique
+            {t.history.clear}
           </button>
         )}
       </div>
@@ -40,7 +42,7 @@ export function ActivityPanel({
               <p>{a.message}</p>
             </div>
             <time>
-              {new Date(a.at).toLocaleString("fr-FR", {
+              {new Date(a.at).toLocaleString(t.locale, {
                 day: "numeric",
                 month: "short",
                 hour: "2-digit",
@@ -52,8 +54,8 @@ export function ActivityPanel({
       ) : (
         <div className="empty-state">
           <History aria-hidden="true" size={28} />
-          <h3>Une page blanche, pour l’instant.</h3>
-          <p>Les arrêts effectués dans Portlight apparaîtront ici.</p>
+          <h3>{t.history.emptyTitle}</h3>
+          <p>{t.history.emptyText}</p>
         </div>
       )}
     </section>

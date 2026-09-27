@@ -1,6 +1,7 @@
 import { Laptop, Monitor, Moon, Radio, Search, Sun } from "lucide-react";
 import type { Service, ThemePreference, View } from "../types";
 import { views } from "../navigation";
+import { LANGUAGES, useT, type Language } from "../i18n";
 interface Props {
   view: View;
   project: string;
@@ -16,11 +17,13 @@ interface Props {
   setProject: (value: string) => void;
   setQuery: (value: string) => void;
   setTheme: (value: ThemePreference) => void;
+  language: Language;
+  setLanguage: (value: Language) => void;
 }
 const themes = [
-  { id: "system", name: "Système", icon: Monitor },
-  { id: "light", name: "Clair", icon: Sun },
-  { id: "dark", name: "Sombre", icon: Moon },
+  { id: "system", icon: Monitor },
+  { id: "light", icon: Sun },
+  { id: "dark", icon: Moon },
 ] as const;
 export function Sidebar({
   view,
@@ -37,7 +40,10 @@ export function Sidebar({
   setProject,
   setQuery,
   setTheme,
+  language,
+  setLanguage,
 }: Props) {
+  const t = useT();
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -45,7 +51,7 @@ export function Sidebar({
           <Radio aria-hidden="true" size={22} />
         </div>
         <div>
-          Portlight<span>LOCAL, SOUS CONTRÔLE.</span>
+          Portlight<span>{t.sidebar.tagline}</span>
         </div>
       </div>
       <button
@@ -56,12 +62,12 @@ export function Sidebar({
         }}
       >
         <Search aria-hidden="true" size={16} />
-        <span>Action rapide</span>
+        <span>{t.sidebar.quickAction}</span>
         <kbd>⌘ K</kbd>
       </button>
-      <div className="nav-label">ESPACE DE TRAVAIL</div>
-      <nav aria-label="Navigation principale">
-        {views.map(({ id, name, icon: Icon }) => (
+      <div className="nav-label">{t.sidebar.workspace}</div>
+      <nav aria-label={t.sidebar.navigation}>
+        {views.map(({ id, icon: Icon }) => (
           <button
             key={id}
             className={`nav-item ${view === id ? "active" : ""}`}
@@ -69,7 +75,7 @@ export function Sidebar({
             onClick={() => navigate(id)}
           >
             <Icon aria-hidden="true" size={18} />
-            <span>{name}</span>
+            <span>{t.views[id]}</span>
             {id === "old" && oldServices.length > 0 ? (
               <span className="nav-count warning">{oldServices.length}</span>
             ) : id === "all" || id === "process" || id === "docker" ? (
@@ -83,7 +89,7 @@ export function Sidebar({
         ))}
       </nav>
       <div className="nav-label project-label">
-        PROJETS <span>{projects.length}</span>
+        {t.sidebar.projects} <span>{projects.length}</span>
       </div>
       <div className="project-nav">
         {projects.length ? (
@@ -105,33 +111,57 @@ export function Sidebar({
             </button>
           ))
         ) : (
-          <p className="sidebar-empty">
-            Les projets apparaîtront ici après le premier relevé.
-          </p>
+          <p className="sidebar-empty">{t.sidebar.projectsEmpty}</p>
         )}
       </div>
       <div className="sidebar-bottom">
         <div className="local-machine">
           <Laptop aria-hidden="true" size={19} />
           <div>
-            Ce Mac<span>Tout reste sur votre machine</span>
+            {t.common.thisMac}
+            <span>{t.sidebar.machineNote}</span>
           </div>
           <span className="dot green" />
         </div>
-        <div className="theme-switch" role="group" aria-label="Thème">
-          {themes.map(({ id, name, icon: Icon }) => (
-            <button
-              key={id}
-              aria-pressed={theme === id}
-              title={
-                id === "system" ? "Suivre le thème de macOS" : `Thème ${name}`
-              }
-              onClick={() => setTheme(id)}
-            >
-              <Icon aria-hidden="true" size={14} />
-              <span>{name}</span>
-            </button>
-          ))}
+        <div className="sidebar-switches">
+          <div
+            className="theme-switch language-switch"
+            role="group"
+            aria-label={t.settings.language}
+          >
+            {LANGUAGES.map(({ id, name }) => (
+              <button
+                key={id}
+                lang={id}
+                aria-pressed={language === id}
+                title={name}
+                onClick={() => setLanguage(id)}
+              >
+                <span>{id.toUpperCase()}</span>
+              </button>
+            ))}
+          </div>
+          <div
+            className="theme-switch"
+            role="group"
+            aria-label={t.sidebar.theme}
+          >
+            {themes.map(({ id, icon: Icon }) => (
+              <button
+                key={id}
+                aria-pressed={theme === id}
+                title={
+                  id === "system"
+                    ? t.sidebar.themeSystemTitle
+                    : t.sidebar.themeTitle(t.sidebar.themes[id])
+                }
+                onClick={() => setTheme(id)}
+              >
+                <Icon aria-hidden="true" size={15} />
+                <span className="sr-only">{t.sidebar.themes[id]}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </aside>

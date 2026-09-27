@@ -8,6 +8,7 @@ import {
   Clock3,
 } from "lucide-react";
 import type { Service } from "../types";
+import { useT } from "../i18n";
 import {
   cpu,
   duration,
@@ -33,6 +34,7 @@ export function ServiceRow({
   busy: boolean;
   disabled: boolean;
 }) {
+  const t = useT();
   return (
     <div className="service-row" role="row">
       <div className={`service-icon ${s.kind}`} role="cell">
@@ -48,7 +50,7 @@ export function ServiceRow({
         <button className="text-button name-button" onClick={onDetails}>
           {s.name}
         </button>
-        <span>{serviceDescription(s)}</span>
+        <span>{serviceDescription(s, t)}</span>
       </div>
       <div className="port-list" role="cell">
         {s.ports.map((port) =>
@@ -56,19 +58,15 @@ export function ServiceRow({
             <button
               key={port}
               className="port"
-              title={`Ouvrir http://localhost:${port}`}
-              aria-label={`Ouvrir le port ${port} dans le navigateur`}
+              title={t.row.openTitle(port)}
+              aria-label={t.row.openPort(port)}
               onClick={() => onOpen(port)}
             >
               {port}
               <ExternalLink aria-hidden="true" size={11} />
             </button>
           ) : (
-            <span
-              key={port}
-              className="port static"
-              title={`Port ${port} : service sans page web`}
-            >
+            <span key={port} className="port static" title={t.row.nonWeb(port)}>
               {port}
             </span>
           ),
@@ -80,25 +78,22 @@ export function ServiceRow({
       >
         <span className="uptime-value">
           {isOld(s, reviewHours) && <Clock3 aria-hidden="true" size={13} />}
-          {duration(s.elapsedSeconds)}
+          {duration(s.elapsedSeconds, t)}
         </span>
         {s.memoryBytes !== null && (
-          <span
-            className="resources"
-            title="Processeur récent · mémoire résidente"
-          >
-            {cpu(s.cpuPercent)} · {memory(s.memoryBytes)}
+          <span className="resources" title={t.row.resources}>
+            {cpu(s.cpuPercent, t)} · {memory(s.memoryBytes, t)}
           </span>
         )}
       </div>
       <div className="scope" role="cell">
         <span className={`dot ${s.exposed ? "amber" : "green"}`} />
-        {s.exposed ? "Réseau" : "Local"}
+        {s.exposed ? t.row.network : t.row.local}
       </div>
       <div className="row-actions" role="cell">
         <button
           className="icon-button"
-          aria-label={`Détails de ${s.name}`}
+          aria-label={t.row.details(s.name)}
           onClick={onDetails}
         >
           <Info aria-hidden="true" size={17} />
@@ -106,11 +101,11 @@ export function ServiceRow({
         <button
           className="stop-button"
           disabled={!s.stoppable || disabled}
-          title={s.reason ?? "Arrêter normalement ce service"}
+          title={s.reason ?? t.row.stopTitle}
           onClick={onStop}
         >
           <Square aria-hidden="true" size={12} />
-          {busy ? "Arrêt…" : s.stoppable ? "Arrêter" : "Protégé"}
+          {busy ? t.row.stopping : s.stoppable ? t.row.stop : t.row.protected}
         </button>
       </div>
     </div>

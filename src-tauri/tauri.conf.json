@@ -29,7 +29,7 @@
     "active": true,
     "targets": ["app"],
     "category": "DeveloperTool",
-    "shortDescription": "Vos ports et serveurs locaux, sous contr\u00f4le.",
+    "shortDescription": "Your local ports and servers, under control.",
     "macOS": {
       "minimumSystemVersion": "12.0"
     },

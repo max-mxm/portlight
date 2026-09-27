@@ -13,7 +13,7 @@ import {
 import * as api from "./api";
 import type { Service, StopRequest, View } from "./types";
 import { isOld, resistantKey, visibleServices } from "./services";
-import { views, heading } from "./navigation";
+import { heading } from "./navigation";
 import { useInventory } from "./hooks/useInventory";
 import { useHistory } from "./hooks/useHistory";
 import { useShortcuts } from "./hooks/useShortcuts";
@@ -27,6 +27,7 @@ import { ServiceDetails } from "./components/ServiceDetails";
 import { StopConfirmation } from "./components/StopConfirmation";
 import { CommandPalette } from "./components/CommandPalette";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { I18nProvider, messages, type Language } from "./i18n";
 
 export default function App() {
   const [view, setView] = useState<View>("all");
@@ -50,6 +51,21 @@ export default function App() {
   const { preference: theme, setPreference: setTheme } = useTheme();
   const { settings, save: saveSettings } = useSettings();
   const { reviewHours } = settings;
+  const latestLanguage = useRef(settings.language);
+  latestLanguage.current = settings.language;
+  const t = messages[settings.language] ?? messages.en;
+  useEffect(() => {
+    document.documentElement.lang = settings.language;
+  }, [settings.language]);
+  async function setLanguage(language: Language) {
+    try {
+      await saveSettings({ ...settings, language });
+      // Protection reasons and warnings come from the backend.
+      void refresh();
+    } catch (e) {
+      setToast(String(e));
+    }
+  }
   const services = useMemo(() => snapshot?.services ?? [], [snapshot]);
   const devServices = services.filter(
     (s) => s.kind === "process" || s.kind === "docker",
@@ -77,7 +93,7 @@ export default function App() {
       const fresh = (await refresh()) ?? latest.current;
       const service = fresh?.services.find((s) => s.id === id);
       if (service) setConfirm({ service, force: false, scope: "service" });
-      else setToast("Ce service ne tourne plus. Ses ports sont libérés.");
+      else setToast(messages[latestLanguage.current].page.gone);
     });
     return () => void unlisten.then((stop) => stop());
   }, [refresh, latest]);
@@ -96,11 +112,11 @@ export default function App() {
         : a.project.localeCompare(b.project) || a.ports[0] - b.ports[0],
     );
     for (const s of items) {
-      const key = sort === "age" ? "Par durée d’activité" : s.project;
+      const key = sort === "age" ? t.page.byAge : s.project;
       map.set(key, [...(map.get(key) ?? []), s]);
     }
     return { visible, entries: [...map.entries()] };
-  }, [services, view, query, project, reviewHours, sort]);
+  }, [services, view, query, project, reviewHours, sort, t]);
   function navigate(next: View) {
     setView(next);
     setProject("");
@@ -147,9 +163,9 @@ export default function App() {
       record({
         name:
           scope === "group"
-            ? `${s.name} et son lanceur`
+            ? t.page.historyGroup(s.name)
             : scope === "compose"
-              ? `Projet Compose ${s.composeProject}`
+              ? t.page.historyCompose(s.composeProject ?? "")
               : s.name,
         ports: [...new Set(affected)].sort((a, b) => a - b),
         message: result.message,
@@ -174,226 +190,227 @@ export default function App() {
     ? Math.max(0, Math.floor((now - snapshot.scannedAt) / 1000))
     : null;
   const stale = lastScan !== null && lastScan > 30;
-  const page = heading(view, reviewHours);
+  const page = heading(view, reviewHours, t);
 
   return (
-    <div className="app-shell">
-      <Sidebar
-        {...{
-          view,
-          project,
-          projects,
-          services,
-          devServices,
-          oldServices,
-          theme,
-          navigate,
-          setPalette,
-          setPaletteQuery,
-          setView,
-          setProject,
-          setQuery,
-          setTheme,
-        }}
-      />
-      <main>
-        <header className="topbar">
-          <div className="breadcrumb">
-            <Laptop aria-hidden="true" size={16} />
-            <span>Ce Mac</span>
-            <span>/</span>
-            <strong>{views.find((v) => v.id === view)?.name}</strong>
+    <I18nProvider language={settings.language}>
+      <div className="app-shell">
+        <Sidebar
+          {...{
+            view,
+            project,
+            projects,
+            services,
+            devServices,
+            oldServices,
+            theme,
+            navigate,
+            setPalette,
+            setPaletteQuery,
+            setView,
+            setProject,
+            setQuery,
+            setTheme,
+            language: settings.language,
+            setLanguage,
+          }}
+        />
+        <main>
+          <header className="topbar">
+            <div className="breadcrumb">
+              <Laptop aria-hidden="true" size={16} />
+              <span>{t.common.thisMac}</span>
+              <span>/</span>
+              <strong>{t.views[view]}</strong>
+            </div>
+            <div className="topbar-right">
+              <span className={`live-status ${paused || stale ? "muted" : ""}`}>
+                <span
+                  className={`dot ${paused || stale ? "amber" : "green"}`}
+                />
+                {!snapshot
+                  ? t.topbar.waiting
+                  : paused
+                    ? t.topbar.paused
+                    : stale
+                      ? t.topbar.stale
+                      : t.topbar.live}
+              </span>
+              <button
+                className="icon-button"
+                aria-label={paused ? t.topbar.resume : t.topbar.pause}
+                onClick={() => setPaused(!paused)}
+              >
+                {paused ? (
+                  <Play aria-hidden="true" size={15} />
+                ) : (
+                  <Pause aria-hidden="true" size={15} />
+                )}
+              </button>
+            </div>
+          </header>
+          <div className="main-content">
+            <section className="page-heading">
+              <div>
+                <div className="eyebrow">{t.page.eyebrow}</div>
+                <h1>{page.title}</h1>
+                <p>{page.description}</p>
+              </div>
+              <button
+                className="refresh-button"
+                onClick={() => void refresh()}
+                disabled={loading || !api.native}
+              >
+                <RefreshCw
+                  aria-hidden="true"
+                  size={16}
+                  className={loading ? "spin" : ""}
+                />
+                {loading ? t.page.scanning : t.page.refresh}
+                <kbd>⌘ R</kbd>
+              </button>
+            </section>
+            {!api.native && (
+              <div className="notice warning-notice">
+                <TriangleAlert aria-hidden="true" size={18} />
+                <div>
+                  <strong>{t.page.webTitle}</strong>
+                  <p>
+                    {t.page.webBefore}
+                    <code>npm run app:dev</code>
+                    {t.page.webAfter}
+                  </p>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div className="notice error-notice" role="alert">
+                <TriangleAlert aria-hidden="true" size={18} />
+                <div>
+                  <strong>{t.page.scanFailed}</strong>
+                  <p>{error}</p>
+                </div>
+                <button onClick={() => void refresh()}>{t.page.retry}</button>
+              </div>
+            )}
+            {snapshot?.warnings.map((w) => (
+              <div className="notice warning-notice" key={w}>
+                <TriangleAlert aria-hidden="true" size={18} />
+                <p>{w}</p>
+              </div>
+            ))}
+            {view !== "history" && view !== "settings" && (
+              <>
+                <Overview
+                  {...{
+                    snapshot,
+                    ports,
+                    services,
+                    oldServices,
+                    view,
+                    navigate,
+                    reviewHours,
+                  }}
+                />
+                <ServicesPanel
+                  {...{
+                    project,
+                    view,
+                    visible: groups.visible,
+                    query,
+                    setQuery,
+                    searchRef,
+                    sort,
+                    setSort,
+                    loading,
+                    snapshot,
+                    groups: groups.entries,
+                    busy,
+                    setDetails,
+                    setConfirm,
+                    open,
+                    reviewHours,
+                  }}
+                />
+                <div className="access-legend">
+                  <span>
+                    <span className="dot green" />
+                    {t.page.legendLocal}
+                  </span>
+                  <span>
+                    <span className="dot amber" />
+                    {t.page.legendNetwork}
+                  </span>
+                </div>
+              </>
+            )}
+            {view === "history" && (
+              <ActivityPanel activity={activity} onClear={clear} />
+            )}
+            {view === "settings" && (
+              <SettingsPanel
+                settings={settings}
+                setLanguage={(language) => void setLanguage(language)}
+                save={async (next) => {
+                  const saved = await saveSettings(next);
+                  void refresh();
+                  return saved;
+                }}
+              />
+            )}
+            <footer className="workspace-footer">
+              <span>
+                <ShieldCheck aria-hidden="true" size={14} />
+                {t.page.footer}
+              </span>
+              <button className="text-button" onClick={() => setPalette(true)}>
+                <Command aria-hidden="true" size={13} />
+                {t.page.footerActions} <kbd>⌘ K</kbd>
+              </button>
+            </footer>
           </div>
-          <div className="topbar-right">
-            <span className={`live-status ${paused || stale ? "muted" : ""}`}>
-              <span className={`dot ${paused || stale ? "amber" : "green"}`} />
-              {!snapshot
-                ? "En attente"
-                : paused
-                  ? "Actualisation en pause"
-                  : stale
-                    ? "Relevé ancien"
-                    : "Actualisation auto"}
-            </span>
+        </main>
+        {details && (
+          <ServiceDetails
+            {...{
+              details,
+              setDetails,
+              resistant,
+              busy,
+              setConfirm,
+              copy,
+              openFolder,
+            }}
+            editor={settings.editor}
+          />
+        )}
+        {confirm && <StopConfirmation {...{ confirm, setConfirm, stop }} />}
+        {palette && (
+          <CommandPalette
+            {...{
+              setPalette,
+              paletteQuery,
+              setPaletteQuery,
+              services,
+              refresh,
+              setConfirm,
+            }}
+          />
+        )}
+        {toast && (
+          <div className="toast" role="status">
+            <ActivityIcon aria-hidden="true" size={18} />
+            <span>{toast}</span>
             <button
               className="icon-button"
-              aria-label={
-                paused
-                  ? "Reprendre l’actualisation"
-                  : "Mettre l’actualisation en pause"
-              }
-              onClick={() => setPaused(!paused)}
+              onClick={() => setToast("")}
+              aria-label={t.page.closeNotification}
             >
-              {paused ? (
-                <Play aria-hidden="true" size={15} />
-              ) : (
-                <Pause aria-hidden="true" size={15} />
-              )}
+              <X aria-hidden="true" size={16} />
             </button>
           </div>
-        </header>
-        <div className="main-content">
-          <section className="page-heading">
-            <div>
-              <div className="eyebrow">VOTRE ENVIRONNEMENT LOCAL</div>
-              <h1>{page.title}</h1>
-              <p>{page.description}</p>
-            </div>
-            <button
-              className="refresh-button"
-              onClick={() => void refresh()}
-              disabled={loading || !api.native}
-            >
-              <RefreshCw
-                aria-hidden="true"
-                size={16}
-                className={loading ? "spin" : ""}
-              />
-              {loading ? "Analyse…" : "Actualiser"}
-              <kbd>⌘ R</kbd>
-            </button>
-          </section>
-          {!api.native && (
-            <div className="notice warning-notice">
-              <TriangleAlert aria-hidden="true" size={18} />
-              <div>
-                <strong>
-                  Ouvrez l’application Mac pour analyser vos ports.
-                </strong>
-                <p>
-                  Cette page est l’interface web. Lancez{" "}
-                  <code>npm run app:dev</code> ou ouvrez Portlight.app pour
-                  accéder aux processus locaux.
-                </p>
-              </div>
-            </div>
-          )}
-          {error && (
-            <div className="notice error-notice" role="alert">
-              <TriangleAlert aria-hidden="true" size={18} />
-              <div>
-                <strong>Le relevé n’a pas abouti.</strong>
-                <p>{error}</p>
-              </div>
-              <button onClick={() => void refresh()}>Réessayer</button>
-            </div>
-          )}
-          {snapshot?.warnings.map((w) => (
-            <div className="notice warning-notice" key={w}>
-              <TriangleAlert aria-hidden="true" size={18} />
-              <p>{w}</p>
-            </div>
-          ))}
-          {view !== "history" && view !== "settings" && (
-            <>
-              <Overview
-                {...{
-                  snapshot,
-                  ports,
-                  services,
-                  oldServices,
-                  view,
-                  navigate,
-                  reviewHours,
-                }}
-              />
-              <ServicesPanel
-                {...{
-                  project,
-                  view,
-                  visible: groups.visible,
-                  query,
-                  setQuery,
-                  searchRef,
-                  sort,
-                  setSort,
-                  loading,
-                  snapshot,
-                  groups: groups.entries,
-                  busy,
-                  setDetails,
-                  setConfirm,
-                  open,
-                  reviewHours,
-                }}
-              />
-              <div className="access-legend">
-                <span>
-                  <span className="dot green" />
-                  Local : accessible depuis ce Mac
-                </span>
-                <span>
-                  <span className="dot amber" />
-                  Réseau : écoute sur toutes les interfaces, selon le pare-feu
-                </span>
-              </div>
-            </>
-          )}
-          {view === "history" && (
-            <ActivityPanel activity={activity} onClear={clear} />
-          )}
-          {view === "settings" && (
-            <SettingsPanel
-              settings={settings}
-              save={async (next) => {
-                const saved = await saveSettings(next);
-                void refresh();
-                return saved;
-              }}
-            />
-          )}
-          <footer className="workspace-footer">
-            <span>
-              <ShieldCheck aria-hidden="true" size={14} />
-              Sans serveur · Sans compte · Sur votre Mac
-            </span>
-            <button className="text-button" onClick={() => setPalette(true)}>
-              <Command aria-hidden="true" size={13} />
-              Les actions au bout des doigts <kbd>⌘ K</kbd>
-            </button>
-          </footer>
-        </div>
-      </main>
-      {details && (
-        <ServiceDetails
-          {...{
-            details,
-            setDetails,
-            resistant,
-            busy,
-            setConfirm,
-            copy,
-            openFolder,
-          }}
-          editor={settings.editor}
-        />
-      )}
-      {confirm && <StopConfirmation {...{ confirm, setConfirm, stop }} />}
-      {palette && (
-        <CommandPalette
-          {...{
-            setPalette,
-            paletteQuery,
-            setPaletteQuery,
-            services,
-            refresh,
-            setConfirm,
-          }}
-        />
-      )}
-      {toast && (
-        <div className="toast" role="status">
-          <ActivityIcon aria-hidden="true" size={18} />
-          <span>{toast}</span>
-          <button
-            className="icon-button"
-            onClick={() => setToast("")}
-            aria-label="Fermer la notification"
-          >
-            <X aria-hidden="true" size={16} />
-          </button>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </I18nProvider>
   );
 }

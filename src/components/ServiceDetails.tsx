@@ -3,6 +3,7 @@ import { Check, Code2, Copy, FolderOpen, ShieldCheck } from "lucide-react";
 import type { Service, StopRequest, StopScope } from "../types";
 import { cpu, duration, memory, resistantKey } from "../services";
 import { Modal } from "./Modal";
+import { useT } from "../i18n";
 export function ServiceDetails({
   details,
   setDetails,
@@ -22,6 +23,8 @@ export function ServiceDetails({
   editor: string | null;
   openFolder: (s: Service, editor: string | null) => Promise<void>;
 }) {
+  const t = useT();
+  const d = t.details;
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
   );
@@ -40,48 +43,50 @@ export function ServiceDetails({
         <div className="detail-heading">
           <span className="type-tag">
             {details.kind === "docker"
-              ? "Docker"
+              ? d.docker
               : details.kind === "process"
-                ? "Processus"
-                : "Protégé"}
+                ? d.process
+                : d.protected}
           </span>
           <span>{details.project}</span>
         </div>
         <dl>
-          <dt>Ports en écoute</dt>
+          <dt>{d.ports}</dt>
           <dd>{details.ports.join(", ")}</dd>
-          <dt>PID</dt>
-          <dd>{details.pid || "Géré par Docker"}</dd>
+          <dt>{d.pid}</dt>
+          <dd>{details.pid || d.managedByDocker}</dd>
           {details.image && (
             <>
-              <dt>Image</dt>
+              <dt>{d.image}</dt>
               <dd className="mono">{details.image}</dd>
             </>
           )}
-          <dt>Durée d’activité</dt>
-          <dd>{duration(details.elapsedSeconds)}</dd>
+          <dt>{d.uptime}</dt>
+          <dd>{duration(details.elapsedSeconds, t)}</dd>
           {details.memoryBytes !== null && (
             <>
-              <dt>Ressources</dt>
+              <dt>{d.resources}</dt>
               <dd className="mono">
-                CPU {cpu(details.cpuPercent)} · Mémoire{" "}
-                {memory(details.memoryBytes)}
+                {d.resourcesValue(
+                  cpu(details.cpuPercent, t),
+                  memory(details.memoryBytes, t),
+                )}
               </dd>
             </>
           )}
-          <dt>Adresses</dt>
+          <dt>{d.addresses}</dt>
           <dd className="mono">{details.addresses.join(", ")}</dd>
-          <dt>Dossier du projet</dt>
-          <dd className="mono">{details.cwd || "Non disponible"}</dd>
-          <dt>Commande du processus</dt>
+          <dt>{d.folder}</dt>
+          <dd className="mono">{details.cwd || d.unavailable}</dd>
+          <dt>{d.command}</dt>
           <dd>
             <pre>{details.command}</pre>
           </dd>
           {details.parents.length > 0 && (
             <>
-              <dt>Lancé par</dt>
+              <dt>{d.launchedBy}</dt>
               <dd>
-                <ol className="lineage" aria-label="Processus parents">
+                <ol className="lineage" aria-label={d.parents}>
                   {details.parents.map((p) => (
                     <li key={p.pid} title={p.command}>
                       <strong>{p.name}</strong>
@@ -100,7 +105,7 @@ export function ServiceDetails({
               onClick={() => void openFolder(details, null)}
             >
               <FolderOpen aria-hidden="true" size={16} />
-              Ouvrir dans le Finder
+              {d.openFinder}
             </button>
             {editor && (
               <button
@@ -108,7 +113,7 @@ export function ServiceDetails({
                 onClick={() => void openFolder(details, editor)}
               >
                 <Code2 aria-hidden="true" size={16} />
-                Ouvrir dans {editor}
+                {d.openEditor(editor)}
               </button>
             )}
           </div>
@@ -120,13 +125,14 @@ export function ServiceDetails({
           </div>
         )}
         {details.stoppable && details.launchGroup.length > 0 && (
-          <section className="scope-box" aria-label="Lanceur du service">
+          <section className="scope-box" aria-label={d.launcher}>
             <div>
-              <strong>Relancé automatiquement ?</strong>
+              <strong>{d.restarted}</strong>
               <p>
-                {details.launchGroup[0].name} a lancé ce serveur. Arrêtez
-                l’ensemble pour éviter un redémarrage :{" "}
-                {details.launchGroup.map((p) => p.name).join(", ")}.
+                {d.restartedText(
+                  details.launchGroup[0].name,
+                  details.launchGroup.map((p) => p.name).join(", "),
+                )}
               </p>
             </div>
             <button
@@ -135,15 +141,15 @@ export function ServiceDetails({
               onClick={() => request("group")}
             >
               {forced("group")
-                ? "Forcer l’arrêt du groupe"
-                : `Arrêter les ${details.launchGroup.length} processus`}
+                ? d.forceGroup
+                : d.stopGroup(details.launchGroup.length)}
             </button>
           </section>
         )}
         {details.stoppable && compose && (
-          <section className="scope-box" aria-label="Projet Compose">
+          <section className="scope-box" aria-label={d.composeLabel}>
             <div>
-              <strong>Projet Compose {compose}</strong>
+              <strong>{d.composeTitle(compose)}</strong>
               <p>{details.composeContainers.join(", ")}</p>
             </div>
             <button
@@ -151,21 +157,17 @@ export function ServiceDetails({
               disabled={busy !== null}
               onClick={() => request("compose")}
             >
-              Arrêter les {details.composeContainers.length} conteneurs
+              {d.stopCompose(details.composeContainers.length)}
             </button>
           </section>
         )}
         {details.stoppable && (
           <div className="command-box">
-            <span>Commande d’arrêt</span>
+            <span>{d.stopCommand}</span>
             <code>{details.stopCommand}</code>
             <button
               className="icon-button"
-              aria-label={
-                copyState === "copied"
-                  ? "Commande copiée"
-                  : "Copier la commande d’arrêt"
-              }
+              aria-label={copyState === "copied" ? d.copied : d.copy}
               onClick={async () =>
                 setCopyState(
                   (await copy(details.stopCommand)) ? "copied" : "error",
@@ -180,16 +182,14 @@ export function ServiceDetails({
             </button>
             {copyState !== "idle" && (
               <span className="copy-feedback" role="status">
-                {copyState === "copied"
-                  ? "Commande copiée dans le presse-papiers."
-                  : "Copie indisponible. Sélectionnez la commande pour la copier."}
+                {copyState === "copied" ? d.copiedText : d.copyFailed}
               </span>
             )}
           </div>
         )}
         <div className="modal-actions">
           <button className="secondary-button" onClick={() => setDetails(null)}>
-            Fermer
+            {t.common.close}
           </button>
           {details.stoppable && (
             <button
@@ -197,7 +197,7 @@ export function ServiceDetails({
               disabled={busy !== null}
               onClick={() => request("service")}
             >
-              {forced("service") ? "Forcer l’arrêt" : "Arrêter ce service"}
+              {forced("service") ? d.force : d.stop}
             </button>
           )}
         </div>

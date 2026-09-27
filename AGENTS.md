@@ -1,6 +1,6 @@
 # Portlight
 
-Application macOS locale Tauri 2 / Rust / React / TypeScript. UI en français. Priorité à la clarté, la réactivité et la précision des actions.
+Application macOS locale Tauri 2 / Rust / React / TypeScript. UI en anglais par défaut, français disponible : textes dans `src/i18n/messages.ts` et `src-tauri/src/i18n.rs`, jamais en dur. Priorité à la clarté, la réactivité et la précision des actions.
 
 - Lire docs/design-decisions.md pour les décisions d’interface.
 - Ne pas ajouter de serveur HTTP en production ni de service cloud.

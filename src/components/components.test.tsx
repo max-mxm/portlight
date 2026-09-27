@@ -6,6 +6,7 @@ import { CommandPalette } from "./CommandPalette";
 import { ServiceDetails } from "./ServiceDetails";
 import { ServiceRow } from "./ServiceRow";
 import { StopConfirmation } from "./StopConfirmation";
+import { I18nProvider } from "../i18n";
 
 const group = [
   { pid: 40, name: "node pnpm", command: "node /x/pnpm dev", ports: [] },
@@ -25,16 +26,14 @@ describe("Confirmation d’arrêt", () => {
     );
     expect(
       screen.getByRole("heading", {
-        name: "Arrêter le lanceur et ses processus ?",
+        name: "Stop the launcher and its processes?",
       }),
     ).toBeTruthy();
-    const members = screen.getByRole("list", { name: "Processus arrêtés" });
+    const members = screen.getByRole("list", { name: "Stopped processes" });
     expect(members.textContent).toContain("node pnpm");
     expect(members.textContent).toContain(":3000");
     expect(screen.getByText("kill -TERM 40 42")).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Arrêter 2 processus" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Stop 2 processes" }));
     expect(stop).toHaveBeenCalledWith({
       service,
       force: false,
@@ -72,7 +71,7 @@ describe("Palette", () => {
   it("libère le port exact avec Entrée", () => {
     const setConfirm = renderPalette(":3000");
     expect(screen.queryByText(/13000/)).toBeNull();
-    fireEvent.keyDown(screen.getByLabelText("Chercher une action"), {
+    fireEvent.keyDown(screen.getByLabelText("Search an action"), {
       key: "Enter",
     });
     expect(setConfirm).toHaveBeenCalledWith({
@@ -83,10 +82,10 @@ describe("Palette", () => {
   });
   it("explique un port libre ou protégé", () => {
     renderPalette(":4000");
-    expect(screen.getByText(/Le port :4000 est libre/)).toBeTruthy();
+    expect(screen.getByText(/Port :4000 is free/)).toBeTruthy();
     cleanupAndRender(":8021");
     expect(
-      screen.getByText(/utilisé par launchd, un service protégé/),
+      screen.getByText(/is used by launchd, a protected service/),
     ).toBeTruthy();
   });
   function cleanupAndRender(query: string) {
@@ -111,13 +110,15 @@ describe("Ligne de service", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Ouvrir le port 3000 dans le navigateur",
+        name: "Open port 3000 in the browser",
       }),
     );
     expect(onOpen).toHaveBeenCalledWith(3000);
     expect(screen.queryByRole("button", { name: /5432/ })).toBeNull();
-    expect(screen.getByTitle("Port 5432 : service sans page web")).toBeTruthy();
-    expect(screen.getByText("0,4 % · 180 Mo")).toBeTruthy();
+    expect(
+      screen.getByTitle("Port 5432: service without a web page"),
+    ).toBeTruthy();
+    expect(screen.getByText("0.4% · 180 MB")).toBeTruthy();
   });
 });
 
@@ -141,10 +142,10 @@ describe("Détails", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Arrêter ce service" }),
+      screen.getByRole("button", { name: "Stop this service" }),
     ).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: "Forcer l’arrêt du groupe" }),
+      screen.getByRole("button", { name: "Force stop the group" }),
     );
     expect(setConfirm).toHaveBeenCalledWith({
       service: details,
@@ -161,7 +162,7 @@ describe("Détails", () => {
         setConfirm={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Ouvrir dans Cursor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in Cursor" }));
     expect(props.openFolder).toHaveBeenCalledWith(
       expect.objectContaining({ id: "1" }),
       "Cursor",
@@ -183,8 +184,29 @@ describe("Détails", () => {
       />,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Arrêter les 3 conteneurs" }),
+      screen.getByRole("button", { name: "Stop the 3 containers" }),
     );
     expect(setConfirm.mock.calls[0][0].scope).toBe("compose");
+  });
+});
+
+describe("Langue", () => {
+  it("affiche l’interface en français quand elle est choisie", () => {
+    render(
+      <I18nProvider language="fr">
+        <ServiceRow
+          service={fixture({ ports: [3000] })}
+          reviewHours={8}
+          onDetails={vi.fn()}
+          onStop={vi.fn()}
+          onOpen={vi.fn()}
+          busy={false}
+          disabled={false}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByRole("button", { name: /Arrêter/ })).toBeTruthy();
+    expect(screen.getByText("0,4 % · 180 Mo")).toBeTruthy();
+    expect(screen.getByText("Serveur de développement")).toBeTruthy();
   });
 });

@@ -34,3 +34,9 @@ Version reconstruite avec les fontes locales Space Grotesk et JetBrains Mono. Co
 - Nom de projet tiré du dépôt git le plus proche (dans le dossier personnel ou sur un volume externe) ; un worktree, même avec un `gitdir` relatif, porte le nom de son dépôt principal ; un dossier racine configuré reste prioritaire.
 - Serveur Rust de test lancé avec `cargo run` dans un dépôt temporaire : reconnu comme serveur de développement arrêtable, projet `demo-server`, puis arrêté et supprimé. Liste intégrée élargie (bases de données, .NET, Elixir, PHP-FPM…), comparée au nom exact ou suivi d’une version (`python3.12`, `redis-server`) : `Airtable` n’est plus un serveur `air`.
 - Arrêt revalidé sur la seule cible : table des processus ou `docker inspect` du conteneur avant, puis `lsof` et `netstat` pour les ports libérés, au lieu de deux relevés complets. Les processus zombies ne comptent plus comme en vie. Une identité périmée (même PID, autre heure de démarrage) ne reçoit aucun signal.
+
+## Internationalisation
+
+- Interface, barre des menus et messages du backend en anglais par défaut, en français sur choix. Dictionnaire français vérifié par TypeScript contre le dictionnaire anglais.
+- Tests : rendu en français d’une ligne de service, formats de durée, mémoire et CPU dans les deux langues, langue par défaut des réglages et refus d’une langue inconnue côté Rust.
+- Capture du README refaite en anglais : interface rendue par Chrome headless à 1220 × 820 (×2) avec un relevé réel de la machine injecté par un IPC simulé. Ce n’est pas une capture de la fenêtre native (pas d’accès à l’enregistrement d’écran dans la session).

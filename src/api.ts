@@ -19,6 +19,6 @@ export const setAutostart = (enabled: boolean) =>
 /** Snapshots taken by the backend (menu bar refresh). */
 export const onSnapshot = (handler: (snapshot: Snapshot) => void) =>
   listen<Snapshot>("portlight://snapshot", (e) => handler(e.payload));
-/** "Arrêter…" chosen in the menu bar: the window asks for confirmation. */
+/** "Stop…" chosen in the menu bar: the window asks for confirmation. */
 export const onConfirmStop = (handler: (id: string) => void) =>
   listen<string>("portlight://confirm-stop", (e) => handler(e.payload));

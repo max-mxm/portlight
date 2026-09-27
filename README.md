@@ -14,13 +14,13 @@
 
 A macOS app to find forgotten servers, identify occupied ports, and stop the right process or container.
 
-**Tauri 2 · Rust · React · TypeScript · Vite**. No HTTP server in production, no account, and no cloud service. A French-language interface with light and dark themes, bundled Space Grotesk and JetBrains Mono fonts, a square brutalist layout, and a palette inspired by Monday.
+**Tauri 2 · Rust · React · TypeScript · Vite**. No HTTP server in production, no account, and no cloud service. An English interface with French available, light and dark themes, bundled Space Grotesk and JetBrains Mono fonts, a square brutalist layout, and a palette inspired by Monday.
 
 ## Preview
 
 ![Portlight — overview of local ports and services](docs/images/portlight-overview.jpg)
 
-An actual screenshot of the macOS app. The counters reflect the machine at the time of capture. One view brings together ports, servers, containers, and long-running processes to review; search and actions are accessible from the keyboard.
+The Portlight interface in English and light theme, rendered from a real inventory of the machine; the counters reflect it at the time of capture. The macOS window frame is not included. One view brings together ports, servers, containers, and long-running processes to review; search and actions are accessible from the keyboard.
 
 ## Getting started
 
@@ -56,13 +56,14 @@ src-tauri/target/release/portlight --scan-json
 
 - Search by port, name, PID, command, or project. Filter by project in the sidebar.
 - Group servers by git repository, wherever it is cloned: a worktree is grouped with its main repository.
-- Review development processes that have been running for at least 8 hours in the “To review” view (shown as “À vérifier” in the French UI). This threshold does not prove that a server is unused.
+- Review development processes that have been running for at least 8 hours in the “To review” view. This threshold does not prove that a server is unused.
 - Request a normal stop (`SIGTERM`), check whether ports are released, and use a force stop if the process resists the normal stop.
 - When `npm`, `pnpm`, `turbo`, `nodemon`… restarts the server, stop its launcher and the processes it started in one confirmed action. The details dialog shows the parent chain of every process.
 - Stop the relevant Docker container with `docker stop --time 5`, or every container of its Compose project, without stopping the Docker engine.
 - Check recent CPU and resident memory of each development process. Containers are described from their image (PostgreSQL, Redis, Mailpit, MinIO…).
 - Open a web port in the browser (database, SMTP or ADB ports are not proposed), open the project folder in Finder or in your editor, or copy the stop command.
 - Keep the last 50 actions in local history, pause automatic refresh, and follow the macOS theme or force light or dark.
+- Use Portlight in English (default) or French, from the sidebar or the settings. The language also applies to the menu bar and to messages from the backend.
 - Menu bar: the number of occupied development ports and a stop shortcut per service, always confirmed in the window. Closing the window keeps Portlight in the menu bar; quit it from the menu.
 - Recognize development servers by program name (Node, Python, Ruby, PHP, Java, .NET, Elixir, databases…) and binaries built inside a repository (`cargo run`, `go run`, air).
 - Settings: “To review” delay, project folders, extra development programs, preferred editor, and optional launch at login.
@@ -88,6 +89,7 @@ Rust sends the signals; commands supplied by the interface are never interpreted
 - `src-tauri/src/settings.rs`: validated settings in `~/Library/Application Support/dev.portlight.desktop`.
 - `src-tauri/src/tray.rs`: menu bar item.
 - `src-tauri/src/lib.rs`: typed IPC commands; system work runs outside the UI thread.
+- `src-tauri/src/i18n.rs` and `src/i18n/`: English and French texts; the French dictionary must match the English one, checked by TypeScript.
 - `src/hooks/`: inventory, history, shortcuts, theme, and settings state.
 - `src/`: interface, search, groups, dialogs, and history.
 - `docs/design-decisions.md`: adaptation of the UI UX Pro Max design system to the macOS app.

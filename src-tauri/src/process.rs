@@ -1,3 +1,5 @@
+use crate::i18n::l;
+use crate::tr;
 use std::{
     collections::HashMap,
     io::Read,
@@ -21,9 +23,20 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<Run, Strin
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Impossible de lancer {program} : {e}"))?;
-    let mut stdout = child.stdout.take().ok_or("Sortie standard indisponible")?;
-    let mut stderr = child.stderr.take().ok_or("Sortie d’erreur indisponible")?;
+        .map_err(|e| {
+            tr!(
+                "Unable to start {program}: {e}",
+                "Impossible de lancer {program} : {e}"
+            )
+        })?;
+    let mut stdout = child.stdout.take().ok_or(l(
+        "Standard output unavailable",
+        "Sortie standard indisponible",
+    ))?;
+    let mut stderr = child.stderr.take().ok_or(l(
+        "Error output unavailable",
+        "Sortie d’erreur indisponible",
+    ))?;
     let out = thread::spawn(move || {
         let mut bytes = Vec::new();
         stdout.read_to_end(&mut bytes).map(|_| bytes)
@@ -40,7 +53,10 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<Run, Strin
             Ok(None) => {
                 let _ = child.kill();
                 let _ = child.wait();
-                break Err(format!("{program} ne répond pas dans le délai prévu"));
+                break Err(tr!(
+                    "{program} did not respond in time",
+                    "{program} ne répond pas dans le délai prévu"
+                ));
             }
             Err(e) => {
                 let _ = child.kill();
@@ -51,11 +67,11 @@ pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<Run, Strin
     };
     let bytes = out
         .join()
-        .map_err(|_| "Lecture interrompue")?
+        .map_err(|_| l("Reading interrupted", "Lecture interrompue"))?
         .map_err(|e| e.to_string())?;
     let errors = err
         .join()
-        .map_err(|_| "Lecture interrompue")?
+        .map_err(|_| l("Reading interrupted", "Lecture interrompue"))?
         .map_err(|e| e.to_string())?;
     Ok(Run {
         status: status?,
