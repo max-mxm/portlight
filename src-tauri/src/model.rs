@@ -28,6 +28,8 @@ pub struct Service {
     pub stoppable: bool,
     pub reason: Option<String>,
     pub stop_command: String,
+    /// Image a container was created from, e.g. `postgres:16-alpine`.
+    pub image: Option<String>,
     /// Recent CPU usage reported by ps. Not collected for containers.
     pub cpu_percent: Option<f32>,
     pub memory_bytes: Option<u64>,

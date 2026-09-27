@@ -5,8 +5,10 @@ import {
   isOld,
   isWebPort,
   memory,
+  imageName,
   paletteMatches,
   portQuery,
+  serviceDescription,
   stopCommand,
   visibleServices,
 } from "./services";
@@ -76,6 +78,33 @@ describe("Palette et ports", () => {
     expect(isWebPort(3000)).toBe(true);
     expect(isWebPort(5432)).toBe(false);
     expect(isWebPort(6379)).toBe(false);
+  });
+});
+
+describe("Description des conteneurs", () => {
+  const container = (image: string | null, name = "app-1") =>
+    serviceDescription(fixture({ kind: "docker", image, name }));
+  it("se base sur l’image, pas sur le nom du conteneur", () => {
+    expect(container("postgres:16-alpine")).toBe("Base de données PostgreSQL");
+    expect(container("bitnami/postgresql:17")).toBe(
+      "Base de données PostgreSQL",
+    );
+    expect(container("axllent/mailpit:latest")).toBe(
+      "Boîte mail de développement",
+    );
+    expect(container("journeyapps/powersync-service:latest")).toBe(
+      "Synchronisation PowerSync",
+    );
+    expect(container("dpage/pgadmin4")).toBe("Administration PostgreSQL");
+    // Before, a name containing "pg-storage" was enough.
+    expect(container("ghcr.io/acme/api:1.2", "pg-storage-1")).toBe(
+      "Conteneur · api",
+    );
+    expect(container(null)).toBe("Conteneur Docker");
+  });
+  it("extrait le nom du dépôt de l’image", () => {
+    expect(imageName("registry:5000/team/redis:7@sha256:abc")).toBe("redis");
+    expect(imageName("")).toBeNull();
   });
 });
 

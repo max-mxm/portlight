@@ -90,17 +90,58 @@ export function stopCommand(s: Service, scope: StopScope, force: boolean) {
     return `kill ${signal} ${s.launchGroup.map((p) => p.pid).join(" ")}`;
   return force ? `kill -KILL ${s.pid}` : s.stopCommand;
 }
+/** "ghcr.io/org/postgres:16@sha256:…" → "postgres". */
+export function imageName(image: string | null) {
+  if (!image) return null;
+  const withoutDigest = image.split("@")[0];
+  const repository = withoutDigest.slice(withoutDigest.lastIndexOf("/") + 1);
+  return repository.split(":")[0].toLowerCase() || null;
+}
+/** Common development images, matched on the repository name. */
+const IMAGES: [string, string][] = [
+  ["pgadmin", "Administration PostgreSQL"],
+  ["adminer", "Administration de base de données"],
+  ["postgres", "Base de données PostgreSQL"],
+  ["postgis", "Base de données PostgreSQL"],
+  ["timescale", "Base de données PostgreSQL"],
+  ["mysql", "Base de données MySQL"],
+  ["mariadb", "Base de données MariaDB"],
+  ["mongo", "Base de données MongoDB"],
+  ["clickhouse", "Base analytique ClickHouse"],
+  ["redis", "Cache Redis"],
+  ["valkey", "Cache Valkey"],
+  ["memcached", "Cache Memcached"],
+  ["mailpit", "Boîte mail de développement"],
+  ["mailhog", "Boîte mail de développement"],
+  ["maildev", "Boîte mail de développement"],
+  ["minio", "Stockage compatible S3"],
+  ["localstack", "Services AWS locaux"],
+  ["rabbitmq", "File de messages RabbitMQ"],
+  ["kafka", "Streaming Kafka"],
+  ["redpanda", "Streaming compatible Kafka"],
+  ["nats", "Messagerie NATS"],
+  ["elasticsearch", "Moteur de recherche"],
+  ["opensearch", "Moteur de recherche"],
+  ["meilisearch", "Moteur de recherche"],
+  ["typesense", "Moteur de recherche"],
+  ["keycloak", "Authentification Keycloak"],
+  ["powersync", "Synchronisation PowerSync"],
+  ["grafana", "Tableaux de bord Grafana"],
+  ["prometheus", "Métriques Prometheus"],
+  ["jaeger", "Traces distribuées"],
+  ["nginx", "Serveur web"],
+  ["caddy", "Serveur web"],
+  ["traefik", "Proxy inverse"],
+];
 export function serviceDescription(s: Service) {
-  if (s.kind === "docker")
-    return s.ports.includes(5432) || s.name.includes("pg-storage")
-      ? "Base de données PostgreSQL"
-      : s.name.includes("mailpit")
-        ? "Boîte mail de développement"
-        : s.name.includes("minio")
-          ? "Stockage compatible S3"
-          : s.name.includes("powersync")
-            ? "Synchronisation PowerSync"
-            : "Conteneur Docker";
+  if (s.kind === "docker") {
+    const name = imageName(s.image);
+    if (!name) return "Conteneur Docker";
+    return (
+      IMAGES.find(([pattern]) => name.includes(pattern))?.[1] ??
+      `Conteneur · ${name}`
+    );
+  }
   return s.name === "Next.js"
     ? "Application web · Next.js"
     : s.name === "Vite"

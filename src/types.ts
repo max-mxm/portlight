@@ -19,6 +19,8 @@ export interface Service {
   stoppable: boolean;
   reason: string | null;
   stopCommand: string;
+  /** Image of a container, e.g. "postgres:16-alpine". */
+  image: string | null;
   cpuPercent: number | null;
   memoryBytes: number | null;
   parents: ProcessSummary[];

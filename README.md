@@ -24,7 +24,7 @@ An actual screenshot of the macOS app. The counters reflect the machine at the t
 
 ## Getting started
 
-Requirements: **macOS 12+**, **Node.js 22+**, **stable Rust**, and **Xcode Command Line Tools** (`xcode-select --install`). Docker is optional: its engine must be running to display containers. This version has been validated locally on Apple Silicon; other architectures still need verification.
+Requirements: **macOS 12+**, **Node.js 22+**, **stable Rust**, and **Xcode Command Line Tools** (`xcode-select --install`). Docker is optional: its engine must be running to display containers. Portlight finds the Docker CLI of Docker Desktop (including a user install in `~/.docker/bin`), Homebrew or Colima, OrbStack and Rancher Desktop, and never lists their engine processes as stoppable. This version has been validated locally on Apple Silicon; other architectures still need verification.
 
 The repository is currently private. Cloning requires an authorized GitHub account and a configured SSH key.
 
@@ -60,7 +60,7 @@ src-tauri/target/release/portlight --scan-json
 - Request a normal stop (`SIGTERM`), check whether ports are released, and use a force stop if the process resists the normal stop.
 - When `npm`, `pnpm`, `turbo`, `nodemon`… restarts the server, stop its launcher and the processes it started in one confirmed action. The details dialog shows the parent chain of every process.
 - Stop the relevant Docker container with `docker stop --time 5`, or every container of its Compose project, without stopping the Docker engine.
-- Check recent CPU and resident memory of each development process.
+- Check recent CPU and resident memory of each development process. Containers are described from their image (PostgreSQL, Redis, Mailpit, MinIO…).
 - Open a web port in the browser (database, SMTP or ADB ports are not proposed), open the project folder in Finder or in your editor, or copy the stop command.
 - Keep the last 50 actions in local history, pause automatic refresh, and follow the macOS theme or force light or dark.
 - Menu bar: the number of occupied development ports and a stop shortcut per service, always confirmed in the window. Closing the window keeps Portlight in the menu bar; quit it from the menu.
@@ -69,7 +69,7 @@ src-tauri/target/release/portlight --scan-json
 
 ## How it works
 
-1. Rust collects listening TCP ports with `lsof` and `netstat`, then reads the whole process table with a single `ps` call (metadata, parents, CPU, memory). When Docker is available, published ports are associated with their containers and Compose projects.
+1. Rust collects listening TCP ports with `lsof` and `netstat`, then reads the whole process table with a single `ps` call (metadata, parents, CPU, memory) and every working folder with a single `lsof` call. When Docker is available, published ports are associated with their containers, images and Compose projects through one `docker ps` and one `docker inspect`. A scan runs six system commands, whatever the number of services.
 2. The interface receives an inventory through Tauri IPC commands. It groups services by project and lets you search for a port or process.
 3. Stopping a service, its launcher group or its Compose project requires confirmation. The backend scans again and revalidates every target (PID and start time, launcher identity, list of containers) before sending `SIGTERM` or stopping containers.
 4. Portlight checks whether the ports have been released. If a process resists the normal stop, a force-stop action becomes available.

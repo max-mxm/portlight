@@ -132,6 +132,38 @@ pub fn daemon(command: &str) -> Option<&'static str> {
     })
 }
 
+/// Processes of container engines that publish container ports on the host:
+/// Docker Desktop, OrbStack, Colima / Lima, Rancher Desktop.
+const ENGINES: &[&str] = &[
+    "com.docker",
+    "Docker",
+    "OrbStack",
+    "limactl",
+    "Rancher Desktop",
+];
+
+pub fn container_engine(name: &str) -> bool {
+    ENGINES.iter().any(|engine| name.starts_with(engine))
+}
+
+/// Web framework of a Node process, from its arguments rather than a
+/// substring: "/Users/a/invite/server.js" is not Vite.
+pub fn framework(command: &str) -> Option<&'static str> {
+    if command.starts_with("next-server") {
+        return Some("Next.js");
+    }
+    // The program itself, or a script installed by a package manager.
+    command
+        .split_whitespace()
+        .enumerate()
+        .find_map(|(index, token)| {
+            let file = token.rsplit('/').next().unwrap_or(token);
+            let vite = matches!(file, "vite" | "vite.js" | "vite.mjs")
+                && (index == 0 || token.contains("node_modules/") || token.contains("/bin/"));
+            vite.then_some("Vite")
+        })
+}
+
 pub struct Classification {
     pub kind: &'static str,
     pub stoppable: bool,
@@ -148,7 +180,7 @@ pub fn classify(
     is_self: bool,
     extra: &[String],
 ) -> Classification {
-    let is_docker = name.starts_with("com.docker") || name.starts_with("Docker");
+    let is_docker = container_engine(name);
     let native_path = command.starts_with("/System/")
         || command.starts_with("/usr/libexec/")
         || command.starts_with("/usr/sbin/");
@@ -170,7 +202,7 @@ pub fn classify(
         },
         stoppable: !protected,
         reason: protected.then_some(match daemon {
-            _ if is_docker => "Le moteur Docker est protégé. Arrêtez le conteneur concerné.",
+            _ if is_docker => "Le moteur de conteneurs est protégé. Arrêtez le conteneur concerné.",
             Some("Gradle") => {
                 "Démon Gradle protégé : lancez ./gradlew --stop depuis le projet pour l’arrêter."
             }
@@ -241,12 +273,14 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
         .values()
         .map(|l| (l.pid, l.ports.iter().copied().collect()))
         .collect();
+    let pids: Vec<u32> = listeners.keys().copied().collect();
+    let mut cwds = process::cwds(&pids);
     for (_, listener) in listeners {
         let Some(meta) = table.get(&listener.pid) else {
             continue;
         };
-        let cwd = process::cwd(listener.pid);
-        let is_docker = listener.name.starts_with("com.docker");
+        let cwd = cwds.remove(&listener.pid).unwrap_or_default();
+        let is_docker = container_engine(&listener.name);
         let ports: Vec<u16> = listener
             .ports
             .into_iter()
@@ -266,10 +300,8 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
         let daemon = daemon(&meta.command);
         let name = if let Some(tool) = daemon {
             format!("Démon {tool}")
-        } else if meta.command.starts_with("next-server") {
-            "Next.js".into()
-        } else if meta.command.contains("vite") {
-            "Vite".into()
+        } else if let Some(framework) = framework(&meta.command) {
+            framework.into()
         } else {
             listener.name.clone()
         };
@@ -295,6 +327,7 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
             stoppable: class.stoppable,
             reason: class.reason.map(str::to_owned),
             stop_command: format!("kill -TERM {}", listener.pid),
+            image: None,
             cpu_percent: Some(meta.cpu),
             memory_bytes: Some(meta.rss_kb * 1024),
             parents: lineage::parents(&table, listener.pid, &listening),
@@ -351,6 +384,35 @@ mod tests {
         );
         assert_eq!(project("/", "rapportd", &[]), "rapportd");
         assert_eq!(project("/Users/a/sites/blog", "ruby", &[]), "blog");
+    }
+    #[test]
+    fn frameworks_from_arguments() {
+        assert_eq!(framework("next-server (v16.3.4)"), Some("Next.js"));
+        assert_eq!(
+            framework("node /Users/a/GitHub/web/node_modules/.bin/vite --port 5173"),
+            Some("Vite")
+        );
+        assert_eq!(
+            framework("node /x/node_modules/vite/bin/vite.js dev"),
+            Some("Vite")
+        );
+        assert_eq!(framework("node /Users/a/invite-app/server.js"), None);
+        assert_eq!(framework("node /Users/a/vite-plugins/demo.js"), None);
+        assert_eq!(framework("python -m http.server --dir vite"), None);
+        assert_eq!(framework("vite --host"), Some("Vite"));
+    }
+    #[test]
+    fn container_engines_are_protected() {
+        for engine in [
+            "com.docker.backend",
+            "OrbStack Helper",
+            "limactl",
+            "Rancher Desktop",
+        ] {
+            assert!(container_engine(engine), "{engine}");
+            assert!(!classify(engine, "/x", 501, 501, false, &[]).stoppable);
+        }
+        assert!(!container_engine("node"));
     }
     #[test]
     fn build_daemons_are_protected_tools() {
@@ -416,7 +478,7 @@ tcp4       0      0  127.0.0.1.50000        127.0.0.1.3000         ESTABLISHED  
             &["com".into()],
         );
         assert!(!docker.stoppable);
-        assert!(docker.reason.unwrap().contains("Docker"));
+        assert!(docker.reason.unwrap().contains("moteur de conteneurs"));
         let other_user = classify("postgres", "postgres -D /x", 0, 501, false, &[]);
         assert_eq!((other_user.kind, other_user.stoppable), ("process", false));
         let native = classify("python3", "/usr/libexec/python3 x", 501, 501, false, &[]);

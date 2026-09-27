@@ -14,6 +14,7 @@ export const fixture = (patch: Partial<Service> = {}): Service => ({
   stoppable: true,
   reason: null,
   stopCommand: "kill -TERM 42",
+  image: null,
   cpuPercent: 0.4,
   memoryBytes: 180 * 1024 * 1024,
   parents: [],

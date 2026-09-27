@@ -1,20 +1,41 @@
-use crate::{model::Service, process::output, project};
+use crate::{
+    model::Service,
+    process::{output, run},
+    project,
+};
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+/// Docker CLI locations for Docker Desktop (system or user install),
+/// Homebrew/Colima, OrbStack and Rancher Desktop, in order of preference.
+fn candidates(home: &str) -> Vec<String> {
+    let mut paths = vec![
+        "/usr/local/bin/docker".to_string(),
+        "/opt/homebrew/bin/docker".into(),
+    ];
+    if !home.is_empty() {
+        for relative in [
+            ".docker/bin/docker",
+            ".orbstack/bin/docker",
+            ".rd/bin/docker",
+        ] {
+            paths.push(format!("{}/{relative}", home.trim_end_matches('/')));
+        }
+    }
+    paths.push("/Applications/Docker.app/Contents/Resources/bin/docker".into());
+    paths.push("/Applications/OrbStack.app/Contents/MacOS/xbin/docker".into());
+    paths
+}
+
 pub fn binary() -> Option<String> {
-    [
-        "/usr/local/bin/docker",
-        "/opt/homebrew/bin/docker",
-        "/Applications/Docker.app/Contents/Resources/bin/docker",
-    ]
-    .iter()
-    .find(|p| Path::new(p).exists())
-    .map(|p| p.to_string())
+    // exists() follows symlinks: a link left by an uninstalled engine is skipped.
+    candidates(&std::env::var("HOME").unwrap_or_default())
+        .into_iter()
+        .find(|p| Path::new(p).exists())
 }
 
 #[derive(Deserialize)]
@@ -26,9 +47,41 @@ struct Row {
 }
 #[derive(Deserialize)]
 struct Details {
+    id: String,
     started: String,
     directory: String,
     project: String,
+    image: String,
+}
+
+const INSPECT_FORMAT: &str = "{\"id\":{{json .Id}},\"started\":{{json .State.StartedAt}},\"directory\":{{json (index .Config.Labels \"com.docker.compose.project.working_dir\")}},\"project\":{{json (index .Config.Labels \"com.docker.compose.project\")}},\"image\":{{json .Config.Image}}}";
+
+/// Metadata of several containers in one `docker inspect` call. A container
+/// removed since `docker ps` is missing from the result.
+fn inspect(bin: &str, ids: &[&str]) -> Result<HashMap<String, Details>, String> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let mut args = vec!["inspect", "--format", INSPECT_FORMAT];
+    args.extend(ids);
+    let run = run(bin, &args, Duration::from_secs(6))?;
+    let details = parse_inspect(&run.stdout)?;
+    if details.is_empty() && !run.status.success() {
+        return Err(format!("docker inspect : {}", run.stderr));
+    }
+    Ok(details)
+}
+
+fn parse_inspect(text: &str) -> Result<HashMap<String, Details>, String> {
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            // Missing labels are encoded as empty strings by Docker's template engine.
+            serde_json::from_str::<Details>(line)
+                .map(|d| (d.id.clone(), d))
+                .map_err(|e| format!("Métadonnées Docker invalides : {e}"))
+        })
+        .collect()
 }
 
 pub fn port_bindings(value: &str) -> Vec<(u16, String)> {
@@ -104,16 +157,21 @@ pub fn list(roots: &[String]) -> Result<Vec<Service>, String> {
             .push(row.name.clone());
     }
     compose.values_mut().for_each(|names| names.sort());
+    let published: Vec<(Row, Vec<(u16, String)>)> = rows
+        .into_iter()
+        .map(|row| {
+            let bindings = port_bindings(&row.ports);
+            (row, bindings)
+        })
+        .filter(|(_, bindings)| !bindings.is_empty())
+        .collect();
+    let ids: Vec<&str> = published.iter().map(|(row, _)| row.id.as_str()).collect();
+    let mut details = inspect(&bin, &ids)?;
     let mut services = Vec::new();
-    for row in rows {
-        let bindings = port_bindings(&row.ports);
-        if bindings.is_empty() {
+    for (row, bindings) in published {
+        let Some(detail) = details.remove(&row.id) else {
             continue;
-        }
-        let detail = output(&bin, &["inspect", "--format", "{\"started\":{{json .State.StartedAt}},\"directory\":{{json (index .Config.Labels \"com.docker.compose.project.working_dir\")}},\"project\":{{json (index .Config.Labels \"com.docker.compose.project\")}}}", &row.id], Duration::from_secs(3))?;
-        // Missing labels are encoded as empty strings by Docker's template engine.
-        let detail: Details = serde_json::from_str(&detail)
-            .map_err(|e| format!("Métadonnées Docker invalides : {e}"))?;
+        };
         let ports: Vec<u16> = bindings
             .iter()
             .map(|(p, _)| *p)
@@ -159,6 +217,7 @@ pub fn list(roots: &[String]) -> Result<Vec<Service>, String> {
             stoppable: true,
             reason: None,
             stop_command: format!("docker stop {}", row.name),
+            image: (!detail.image.is_empty()).then_some(detail.image),
             cpu_percent: None,
             memory_bytes: None,
             parents: vec![],
@@ -181,6 +240,29 @@ mod tests {
             port_bindings("0.0.0.0:9000-9001->9000-9001/tcp, 0.0.0.0:5353->5353/udp"),
             vec![(9000, "0.0.0.0".into()), (9001, "0.0.0.0".into())]
         );
+    }
+    #[test]
+    fn docker_cli_locations() {
+        let paths = candidates("/Users/a/");
+        assert_eq!(paths[0], "/usr/local/bin/docker");
+        assert!(paths.contains(&"/Users/a/.docker/bin/docker".to_string()));
+        assert!(paths.contains(&"/Users/a/.orbstack/bin/docker".to_string()));
+        assert!(paths.contains(&"/Users/a/.rd/bin/docker".to_string()));
+        assert!(!candidates("").iter().any(|p| p.starts_with("/.")));
+    }
+    #[test]
+    fn batched_inspect() {
+        let details = parse_inspect(concat!(
+            r#"{"id":"abc","started":"2026-09-27T08:00:00Z","directory":"/Users/a/GitHub/app","project":"app","image":"postgres:16-alpine"}"#,
+            "\n",
+            r#"{"id":"def","started":"2026-09-27T08:00:01Z","directory":"","project":"","image":"axllent/mailpit"}"#,
+            "\n\n",
+        ))
+        .unwrap();
+        assert_eq!(details.len(), 2);
+        assert_eq!(details["abc"].image, "postgres:16-alpine");
+        assert!(details["def"].project.is_empty());
+        assert!(parse_inspect("not json").is_err());
     }
     #[test]
     fn host_ports_only() {

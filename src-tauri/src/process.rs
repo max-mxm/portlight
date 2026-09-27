@@ -6,8 +6,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub struct Run {
+    pub status: std::process::ExitStatus,
+    pub stdout: String,
+    pub stderr: String,
+}
+
 // No shell interpolation. Timeouts also cover an unresponsive Docker daemon.
-pub fn output(program: &str, args: &[&str], timeout: Duration) -> Result<String, String> {
+pub fn run(program: &str, args: &[&str], timeout: Duration) -> Result<Run, String> {
     let mut child = Command::new(program)
         .args(args)
         .env("LC_ALL", "C")
@@ -51,17 +57,22 @@ pub fn output(program: &str, args: &[&str], timeout: Duration) -> Result<String,
         .join()
         .map_err(|_| "Lecture interrompue")?
         .map_err(|e| e.to_string())?;
-    let status = status?;
+    Ok(Run {
+        status: status?,
+        stdout: String::from_utf8_lossy(&bytes).into_owned(),
+        stderr: String::from_utf8_lossy(&errors).trim().to_owned(),
+    })
+}
+
+pub fn output(program: &str, args: &[&str], timeout: Duration) -> Result<String, String> {
+    let run = run(program, args, timeout)?;
     // lsof exits 1 when there are no matching sockets.
-    if !status.success()
-        && !(program.ends_with("lsof") && status.code() == Some(1) && errors.is_empty())
+    if !run.status.success()
+        && !(program.ends_with("lsof") && run.status.code() == Some(1) && run.stderr.is_empty())
     {
-        return Err(format!(
-            "{program} : {}",
-            String::from_utf8_lossy(&errors).trim()
-        ));
+        return Err(format!("{program} : {}", run.stderr));
     }
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
+    Ok(run.stdout)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -118,17 +129,37 @@ pub fn parse_elapsed(value: &str) -> u64 {
         })
 }
 
-pub fn cwd(pid: u32) -> String {
-    output(
+/// Parses `lsof -a -d cwd -p … -Fpn`.
+pub fn parse_cwds(text: &str) -> HashMap<u32, String> {
+    let mut result = HashMap::new();
+    let mut pid = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix('p') {
+            pid = value.parse().ok();
+        } else if let (Some(pid), Some(path)) = (pid, line.strip_prefix('n')) {
+            result.entry(pid).or_insert_with(|| path.to_owned());
+        }
+    }
+    result
+}
+
+/// Working folders of several processes in one lsof call. A process that
+/// has exited meanwhile is simply missing from the result.
+pub fn cwds(pids: &[u32]) -> HashMap<u32, String> {
+    if pids.is_empty() {
+        return HashMap::new();
+    }
+    let list = pids
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    run(
         "/usr/sbin/lsof",
-        &["-a", "-p", &pid.to_string(), "-d", "cwd", "-Fn"],
-        Duration::from_secs(3),
+        &["-a", "-p", &list, "-d", "cwd", "-Fpn"],
+        Duration::from_secs(4),
     )
-    .ok()
-    .and_then(|text| {
-        text.lines()
-            .find_map(|line| line.strip_prefix('n').map(str::to_owned))
-    })
+    .map(|run| parse_cwds(&run.stdout))
     .unwrap_or_default()
 }
 
@@ -140,6 +171,13 @@ mod tests {
         assert_eq!(parse_elapsed("01-17:57:08"), 151028);
         assert_eq!(parse_elapsed("09:50"), 590);
         assert_eq!(parse_elapsed("02:00:00"), 7200);
+    }
+    #[test]
+    fn working_folders() {
+        let cwds = parse_cwds("p42\nfcwd\nn/Users/a/GitHub/app\np7\nfcwd\nn/\np9\n");
+        assert_eq!(cwds[&42], "/Users/a/GitHub/app");
+        assert_eq!(cwds[&7], "/");
+        assert!(!cwds.contains_key(&9));
     }
     #[test]
     fn process_table() {

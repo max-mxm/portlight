@@ -52,6 +52,12 @@ export function ServiceDetails({
           <dd>{details.ports.join(", ")}</dd>
           <dt>PID</dt>
           <dd>{details.pid || "Géré par Docker"}</dd>
+          {details.image && (
+            <>
+              <dt>Image</dt>
+              <dd className="mono">{details.image}</dd>
+            </>
+          )}
           <dt>Durée d’activité</dt>
           <dd>{duration(details.elapsedSeconds)}</dd>
           {details.memoryBytes !== null && (
