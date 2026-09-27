@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Fenêtre locale de Portlight",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
