@@ -1,3 +1,9 @@
+export interface ProcessSummary {
+  pid: number;
+  name: string;
+  command: string;
+  ports: number[];
+}
 export interface Service {
   id: string;
   pid: number;
@@ -13,6 +19,12 @@ export interface Service {
   stoppable: boolean;
   reason: string | null;
   stopCommand: string;
+  cpuPercent: number | null;
+  memoryBytes: number | null;
+  parents: ProcessSummary[];
+  launchGroup: ProcessSummary[];
+  composeProject: string | null;
+  composeContainers: string[];
 }
 export interface Snapshot {
   services: Service[];
@@ -33,4 +45,19 @@ export interface Activity {
   message: string;
   success: boolean;
 }
-export type View = "all" | "process" | "docker" | "old" | "system" | "history";
+export interface Settings {
+  reviewHours: number;
+  projectRoots: string[];
+  devBinaries: string[];
+  editor: string | null;
+}
+/** service: the listener only · group: its launcher and descendants · compose: the whole Compose project */
+export type StopScope = "service" | "group" | "compose";
+export interface StopRequest {
+  service: Service;
+  force: boolean;
+  scope: StopScope;
+}
+export type ThemePreference = "system" | "light" | "dark";
+export type View =
+  "all" | "process" | "docker" | "old" | "system" | "history" | "settings";

@@ -7,6 +7,7 @@ interface Props {
   oldServices: Service[];
   view: View;
   navigate: (view: View) => void;
+  reviewHours: number;
 }
 export function Overview({
   snapshot,
@@ -15,6 +16,7 @@ export function Overview({
   oldServices,
   view,
   navigate,
+  reviewHours,
 }: Props) {
   return (
     <>
@@ -63,7 +65,9 @@ export function Overview({
           </span>
           <div className="stat-value">
             {snapshot ? oldServices.length : "—"}
-            <span className="stat-note">actifs depuis + de 8 h</span>
+            <span className="stat-note">
+              actifs depuis + de {reviewHours} h
+            </span>
           </div>
         </button>
       </section>
@@ -77,7 +81,7 @@ export function Overview({
               {oldServices.length === 1
                 ? "Un serveur tourne"
                 : `${oldServices.length} serveurs tournent`}{" "}
-              depuis plus de 8 heures.
+              depuis plus de {reviewHours} heures.
             </strong>
             <span>
               Un terminal fermé ne signifie pas toujours un serveur arrêté.

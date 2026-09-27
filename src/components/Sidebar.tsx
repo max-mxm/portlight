@@ -1,5 +1,5 @@
-import { Laptop, Moon, Radio, Search, Sun } from "lucide-react";
-import type { Service, View } from "../types";
+import { Laptop, Monitor, Moon, Radio, Search, Sun } from "lucide-react";
+import type { Service, ThemePreference, View } from "../types";
 import { views } from "../navigation";
 interface Props {
   view: View;
@@ -8,15 +8,20 @@ interface Props {
   services: Service[];
   devServices: Service[];
   oldServices: Service[];
-  dark: boolean;
+  theme: ThemePreference;
   navigate: (v: View) => void;
   setPalette: (value: boolean) => void;
   setPaletteQuery: (value: string) => void;
   setView: (value: View) => void;
   setProject: (value: string) => void;
   setQuery: (value: string) => void;
-  setDark: (value: boolean) => void;
+  setTheme: (value: ThemePreference) => void;
 }
+const themes = [
+  { id: "system", name: "Système", icon: Monitor },
+  { id: "light", name: "Clair", icon: Sun },
+  { id: "dark", name: "Sombre", icon: Moon },
+] as const;
 export function Sidebar({
   view,
   project,
@@ -24,14 +29,14 @@ export function Sidebar({
   services,
   devServices,
   oldServices,
-  dark,
+  theme,
   navigate,
   setPalette,
   setPaletteQuery,
   setView,
   setProject,
   setQuery,
-  setDark,
+  setTheme,
 }: Props) {
   return (
     <aside className="sidebar">
@@ -113,14 +118,21 @@ export function Sidebar({
           </div>
           <span className="dot green" />
         </div>
-        <button className="theme-toggle" onClick={() => setDark(!dark)}>
-          {dark ? (
-            <Sun aria-hidden="true" size={16} />
-          ) : (
-            <Moon aria-hidden="true" size={16} />
-          )}
-          <span>{dark ? "Passer en clair" : "Passer en sombre"}</span>
-        </button>
+        <div className="theme-switch" role="group" aria-label="Thème">
+          {themes.map(({ id, name, icon: Icon }) => (
+            <button
+              key={id}
+              aria-pressed={theme === id}
+              title={
+                id === "system" ? "Suivre le thème de macOS" : `Thème ${name}`
+              }
+              onClick={() => setTheme(id)}
+            >
+              <Icon aria-hidden="true" size={14} />
+              <span>{name}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </aside>
   );

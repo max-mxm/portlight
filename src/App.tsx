@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity as ActivityIcon,
   Command,
@@ -11,9 +11,14 @@ import {
   X,
 } from "lucide-react";
 import * as api from "./api";
-import type { Activity, Service, Snapshot, View } from "./types";
-import { isOld, visibleServices } from "./services";
-import { views, titles } from "./navigation";
+import type { Service, StopRequest, View } from "./types";
+import { isOld, resistantKey, visibleServices } from "./services";
+import { views, heading } from "./navigation";
+import { useInventory } from "./hooks/useInventory";
+import { useHistory } from "./hooks/useHistory";
+import { useShortcuts } from "./hooks/useShortcuts";
+import { useTheme } from "./hooks/useTheme";
+import { useSettings } from "./hooks/useSettings";
 import { Sidebar } from "./components/Sidebar";
 import { Overview } from "./components/Overview";
 import { ServicesPanel } from "./components/ServicesPanel";
@@ -21,131 +26,69 @@ import { ActivityPanel } from "./components/ActivityPanel";
 import { ServiceDetails } from "./components/ServiceDetails";
 import { StopConfirmation } from "./components/StopConfirmation";
 import { CommandPalette } from "./components/CommandPalette";
-
-function readHistory(): Activity[] {
-  try {
-    const value: unknown = JSON.parse(
-      localStorage.getItem("portlight.history") ?? "[]",
-    );
-    return Array.isArray(value)
-      ? value
-          .filter(
-            (item): item is Activity =>
-              typeof item?.id === "string" &&
-              typeof item?.name === "string" &&
-              Array.isArray(item?.ports) &&
-              item.ports.every((port: unknown) => typeof port === "number") &&
-              typeof item?.at === "number" &&
-              typeof item?.message === "string" &&
-              typeof item?.success === "boolean",
-          )
-          .slice(0, 50)
-      : [];
-  } catch {
-    return [];
-  }
-}
+import { SettingsPanel } from "./components/SettingsPanel";
 
 export default function App() {
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [view, setView] = useState<View>("all");
   const [query, setQuery] = useState("");
   const [project, setProject] = useState("");
   const [paused, setPaused] = useState(false);
   const [details, setDetails] = useState<Service | null>(null);
-  const [confirm, setConfirm] = useState<{
-    service: Service;
-    force: boolean;
-  } | null>(null);
+  const [confirm, setConfirm] = useState<StopRequest | null>(null);
   const [resistant, setResistant] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState<string | null>(null);
   const [palette, setPalette] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState("");
-  const [activity, setActivity] = useState<Activity[]>(readHistory);
   const [toast, setToast] = useState("");
-  const [dark, setDark] = useState(
-    () => localStorage.getItem("portlight.theme") === "dark",
-  );
   const [sort, setSort] = useState<"project" | "age">("project");
-  const [now, setNow] = useState(Date.now());
-  const scanning = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  const services = snapshot?.services ?? [];
+  const { snapshot, loading, error, refresh, now, latest } = useInventory({
+    paused,
+    busy: busy !== null,
+  });
+  const { activity, record, clear } = useHistory();
+  const { preference: theme, setPreference: setTheme } = useTheme();
+  const { settings, save: saveSettings } = useSettings();
+  const { reviewHours } = settings;
+  const services = useMemo(() => snapshot?.services ?? [], [snapshot]);
   const devServices = services.filter(
     (s) => s.kind === "process" || s.kind === "docker",
   );
-  const oldServices = services.filter(isOld);
+  const oldServices = services.filter((s) => isOld(s, reviewHours));
   const projects = [...new Set(devServices.map((s) => s.project))].sort();
   const ports = new Set(devServices.flatMap((s) => s.ports));
-  const refresh = useCallback(async () => {
-    if (!api.native || scanning.current) return;
-    scanning.current = true;
-    setLoading(true);
-    try {
-      setSnapshot(await api.scan());
-      setError("");
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      scanning.current = false;
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setNow(Date.now());
-      if (!paused && !busy && document.visibilityState === "visible")
-        void refresh();
-    }, 10000);
-    const visible = () => {
-      if (!paused && !busy && document.visibilityState === "visible")
-        void refresh();
-    };
-    document.addEventListener("visibilitychange", visible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", visible);
-    };
-  }, [paused, busy, refresh]);
-  useEffect(() => {
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    localStorage.setItem("portlight.theme", dark ? "dark" : "light");
-  }, [dark]);
-  useEffect(() => {
-    localStorage.setItem("portlight.history", JSON.stringify(activity));
-  }, [activity]);
+  useShortcuts({
+    palette: () => {
+      setPalette((p) => !p);
+      setPaletteQuery("");
+    },
+    refresh: () => void refresh(),
+    search: () => searchRef.current?.focus(),
+  });
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 6500);
     return () => clearTimeout(t);
   }, [toast]);
+  // "Arrêter…" from the menu bar: confirm on a fresh inventory.
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPalette((p) => !p);
-        setPaletteQuery("");
-      }
-      if (e.key.toLowerCase() === "r") {
-        e.preventDefault();
-        void refresh();
-      }
-      if (e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [refresh]);
-  const visible = visibleServices(services, view, query, project);
+    if (!api.native) return;
+    const unlisten = api.onConfirmStop(async (id) => {
+      const fresh = (await refresh()) ?? latest.current;
+      const service = fresh?.services.find((s) => s.id === id);
+      if (service) setConfirm({ service, force: false, scope: "service" });
+      else setToast("Ce service ne tourne plus. Ses ports sont libérés.");
+    });
+    return () => void unlisten.then((stop) => stop());
+  }, [refresh, latest]);
   const groups = useMemo(() => {
+    const visible = visibleServices(
+      services,
+      view,
+      query,
+      project,
+      reviewHours,
+    );
     const map = new Map<string, Service[]>();
     const items = [...visible].sort((a, b) =>
       sort === "age"
@@ -156,8 +99,8 @@ export default function App() {
       const key = sort === "age" ? "Par durée d’activité" : s.project;
       map.set(key, [...(map.get(key) ?? []), s]);
     }
-    return [...map.entries()];
-  }, [visible, sort]);
+    return { visible, entries: [...map.entries()] };
+  }, [services, view, query, project, reviewHours, sort]);
   function navigate(next: View) {
     setView(next);
     setProject("");
@@ -166,6 +109,13 @@ export default function App() {
   async function open(s: Service, port: number) {
     try {
       await api.openPort(s.id, port);
+    } catch (e) {
+      setToast(String(e));
+    }
+  }
+  async function openFolder(s: Service, editor: string | null) {
+    try {
+      await api.openFolder(s.id, editor);
     } catch (e) {
       setToast(String(e));
     }
@@ -179,34 +129,40 @@ export default function App() {
     }
   }
 
-  async function stop(s: Service, force: boolean) {
+  async function stop(request: StopRequest) {
+    const { service: s, force, scope } = request;
     setConfirm(null);
     setBusy(s.id);
     try {
-      const result = await api.stop(s.id, force);
+      const result = await api.stop(s.id, force, scope);
       setToast(result.message);
-      setActivity((items) =>
-        [
-          {
-            id: crypto.randomUUID(),
-            name: s.name,
-            ports: s.ports,
-            at: Date.now(),
-            message: result.message,
-            success: result.stopped,
-          },
-          ...items,
-        ].slice(0, 50),
-      );
-      if (!result.stopped) setResistant((ids) => new Set([...ids, s.id]));
-      else {
-        setResistant((ids) => {
-          const next = new Set(ids);
-          next.delete(s.id);
-          return next;
-        });
-        setDetails(null);
-      }
+      const affected =
+        scope === "group"
+          ? s.launchGroup.flatMap((p) => p.ports)
+          : scope === "compose"
+            ? services
+                .filter((x) => x.composeProject === s.composeProject)
+                .flatMap((x) => x.ports)
+            : s.ports;
+      record({
+        name:
+          scope === "group"
+            ? `${s.name} et son lanceur`
+            : scope === "compose"
+              ? `Projet Compose ${s.composeProject}`
+              : s.name,
+        ports: [...new Set(affected)].sort((a, b) => a - b),
+        message: result.message,
+        success: result.stopped,
+      });
+      const key = resistantKey(scope, s.id);
+      setResistant((ids) => {
+        const next = new Set(ids);
+        if (result.stopped) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      if (result.stopped) setDetails(null);
       await refresh();
     } catch (e) {
       setToast(String(e));
@@ -218,11 +174,7 @@ export default function App() {
     ? Math.max(0, Math.floor((now - snapshot.scannedAt) / 1000))
     : null;
   const stale = lastScan !== null && lastScan > 30;
-  const paletteItems = devServices.filter((s) =>
-    `${s.name} ${s.project} ${s.ports.join(" ")}`
-      .toLowerCase()
-      .includes(paletteQuery.toLowerCase()),
-  );
+  const page = heading(view, reviewHours);
 
   return (
     <div className="app-shell">
@@ -234,14 +186,14 @@ export default function App() {
           services,
           devServices,
           oldServices,
-          dark,
+          theme,
           navigate,
           setPalette,
           setPaletteQuery,
           setView,
           setProject,
           setQuery,
-          setDark,
+          setTheme,
         }}
       />
       <main>
@@ -284,8 +236,8 @@ export default function App() {
           <section className="page-heading">
             <div>
               <div className="eyebrow">VOTRE ENVIRONNEMENT LOCAL</div>
-              <h1>{titles[view].title}</h1>
-              <p>{titles[view].description}</p>
+              <h1>{page.title}</h1>
+              <p>{page.description}</p>
             </div>
             <button
               className="refresh-button"
@@ -332,16 +284,24 @@ export default function App() {
               <p>{w}</p>
             </div>
           ))}
-          {view !== "history" && (
+          {view !== "history" && view !== "settings" && (
             <>
               <Overview
-                {...{ snapshot, ports, services, oldServices, view, navigate }}
+                {...{
+                  snapshot,
+                  ports,
+                  services,
+                  oldServices,
+                  view,
+                  navigate,
+                  reviewHours,
+                }}
               />
               <ServicesPanel
                 {...{
                   project,
                   view,
-                  visible,
+                  visible: groups.visible,
                   query,
                   setQuery,
                   searchRef,
@@ -349,11 +309,12 @@ export default function App() {
                   setSort,
                   loading,
                   snapshot,
-                  groups,
+                  groups: groups.entries,
                   busy,
                   setDetails,
                   setConfirm,
                   open,
+                  reviewHours,
                 }}
               />
               <div className="access-legend">
@@ -369,7 +330,17 @@ export default function App() {
             </>
           )}
           {view === "history" && (
-            <ActivityPanel {...{ activity, setActivity }} />
+            <ActivityPanel activity={activity} onClear={clear} />
+          )}
+          {view === "settings" && (
+            <SettingsPanel
+              settings={settings}
+              save={async (next) => {
+                const saved = await saveSettings(next);
+                void refresh();
+                return saved;
+              }}
+            />
           )}
           <footer className="workspace-footer">
             <span>
@@ -385,7 +356,16 @@ export default function App() {
       </main>
       {details && (
         <ServiceDetails
-          {...{ details, setDetails, resistant, busy, setConfirm, copy }}
+          {...{
+            details,
+            setDetails,
+            resistant,
+            busy,
+            setConfirm,
+            copy,
+            openFolder,
+          }}
+          editor={settings.editor}
         />
       )}
       {confirm && <StopConfirmation {...{ confirm, setConfirm, stop }} />}
@@ -395,7 +375,7 @@ export default function App() {
             setPalette,
             paletteQuery,
             setPaletteQuery,
-            paletteItems,
+            services,
             refresh,
             setConfirm,
           }}

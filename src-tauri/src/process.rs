@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Read,
     process::{Command, Stdio},
     thread,
@@ -63,30 +64,47 @@ pub fn output(program: &str, args: &[&str], timeout: Duration) -> Result<String,
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-#[derive(Debug)]
-pub struct Metadata {
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProcessEntry {
+    pub pid: u32,
+    pub ppid: u32,
     pub uid: u32,
+    pub cpu: f32,
+    pub rss_kb: u64,
     pub identity: String,
-    pub command: String,
     pub elapsed: u64,
+    pub command: String,
 }
 
-pub fn metadata(pid: u32) -> Result<Metadata, String> {
-    let text = output(
-        "/bin/ps",
-        &["-p", &pid.to_string(), "-o", "uid=,lstart=,etime=,command="],
-        Duration::from_secs(3),
-    )?;
-    let parts: Vec<&str> = text.split_whitespace().collect();
-    if parts.len() < 8 {
-        return Err("Ce processus a déjà quitté".into());
-    }
-    Ok(Metadata {
-        uid: parts[0].parse().map_err(|_| "Utilisateur inconnu")?,
-        identity: parts[1..6].join(" "),
-        elapsed: parse_elapsed(parts[6]),
-        command: parts[7..].join(" "),
-    })
+const COLUMNS: &str = "pid=,ppid=,uid=,%cpu=,rss=,lstart=,etime=,command=";
+
+/// Parses `ps -o pid=,ppid=,uid=,%cpu=,rss=,lstart=,etime=,command=` (LC_ALL=C).
+pub fn parse_table(text: &str) -> Vec<ProcessEntry> {
+    text.lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 11 {
+                return None;
+            }
+            Some(ProcessEntry {
+                pid: parts[0].parse().ok()?,
+                ppid: parts[1].parse().ok()?,
+                uid: parts[2].parse().ok()?,
+                cpu: parts[3].replace(',', ".").parse().unwrap_or(0.0),
+                rss_kb: parts[4].parse().unwrap_or(0),
+                // lstart: "Sat Sep 27 10:00:00 2026", one-second precision.
+                identity: parts[5..10].join(" "),
+                elapsed: parse_elapsed(parts[10]),
+                command: parts[11..].join(" "),
+            })
+        })
+        .collect()
+}
+
+/// Every process of the machine in a single ps call.
+pub fn table() -> Result<HashMap<u32, ProcessEntry>, String> {
+    let text = output("/bin/ps", &["-A", "-o", COLUMNS], Duration::from_secs(4))?;
+    Ok(parse_table(&text).into_iter().map(|p| (p.pid, p)).collect())
 }
 
 pub fn parse_elapsed(value: &str) -> u64 {
@@ -122,5 +140,21 @@ mod tests {
         assert_eq!(parse_elapsed("01-17:57:08"), 151028);
         assert_eq!(parse_elapsed("09:50"), 590);
         assert_eq!(parse_elapsed("02:00:00"), 7200);
+    }
+    #[test]
+    fn process_table() {
+        let rows = parse_table(
+            "    1     0     0  28.1   7904 Sun Sep 13 00:04:49 2026     14-20:19:10 /sbin/launchd\n\
+             4242  4200   501   0,5 183200 Sat Sep 27 09:12:03 2026        01:02:03 node  /x/next  dev\n\
+             bad line\n",
+        );
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].elapsed, 14 * 86400 + 20 * 3600 + 19 * 60 + 10);
+        let node = &rows[1];
+        assert_eq!((node.pid, node.ppid, node.uid), (4242, 4200, 501));
+        assert_eq!(node.cpu, 0.5);
+        assert_eq!(node.rss_kb, 183200);
+        assert_eq!(node.identity, "Sat Sep 27 09:12:03 2026");
+        assert_eq!(node.command, "node /x/next dev");
     }
 }

@@ -8,7 +8,14 @@ import {
   Clock3,
 } from "lucide-react";
 import type { Service } from "../types";
-import { duration, isOld, serviceDescription } from "../services";
+import {
+  cpu,
+  duration,
+  isOld,
+  isWebPort,
+  memory,
+  serviceDescription,
+} from "../services";
 export function ServiceRow({
   service: s,
   onDetails,
@@ -16,8 +23,10 @@ export function ServiceRow({
   onOpen,
   busy,
   disabled,
+  reviewHours,
 }: {
   service: Service;
+  reviewHours: number;
   onDetails: () => void;
   onStop: () => void;
   onOpen: (port: number) => void;
@@ -42,22 +51,45 @@ export function ServiceRow({
         <span>{serviceDescription(s)}</span>
       </div>
       <div className="port-list" role="cell">
-        {s.ports.map((port) => (
-          <button
-            key={port}
-            className="port"
-            title={`Ouvrir http://localhost:${port}`}
-            aria-label={`Ouvrir le port ${port} dans le navigateur`}
-            onClick={() => onOpen(port)}
-          >
-            {port}
-            <ExternalLink aria-hidden="true" size={11} />
-          </button>
-        ))}
+        {s.ports.map((port) =>
+          isWebPort(port) ? (
+            <button
+              key={port}
+              className="port"
+              title={`Ouvrir http://localhost:${port}`}
+              aria-label={`Ouvrir le port ${port} dans le navigateur`}
+              onClick={() => onOpen(port)}
+            >
+              {port}
+              <ExternalLink aria-hidden="true" size={11} />
+            </button>
+          ) : (
+            <span
+              key={port}
+              className="port static"
+              title={`Port ${port} : service sans page web`}
+            >
+              {port}
+            </span>
+          ),
+        )}
       </div>
-      <div className={`uptime ${isOld(s) ? "old" : ""}`} role="cell">
-        {isOld(s) && <Clock3 aria-hidden="true" size={13} />}
-        <span>{duration(s.elapsedSeconds)}</span>
+      <div
+        className={`uptime ${isOld(s, reviewHours) ? "old" : ""}`}
+        role="cell"
+      >
+        <span className="uptime-value">
+          {isOld(s, reviewHours) && <Clock3 aria-hidden="true" size={13} />}
+          {duration(s.elapsedSeconds)}
+        </span>
+        {s.memoryBytes !== null && (
+          <span
+            className="resources"
+            title="Processeur récent · mémoire résidente"
+          >
+            {cpu(s.cpuPercent)} · {memory(s.memoryBytes)}
+          </span>
+        )}
       </div>
       <div className="scope" role="cell">
         <span className={`dot ${s.exposed ? "amber" : "green"}`} />

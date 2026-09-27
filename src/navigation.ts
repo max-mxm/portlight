@@ -3,6 +3,7 @@ import {
   Clock3,
   History,
   Layers3,
+  Settings2,
   ShieldCheck,
   Terminal,
 } from "lucide-react";
@@ -14,8 +15,9 @@ export const views = [
   { id: "old", name: "À vérifier", icon: Clock3 },
   { id: "system", name: "Système & outils", icon: ShieldCheck },
   { id: "history", name: "Historique", icon: History },
+  { id: "settings", name: "Réglages", icon: Settings2 },
 ] as const;
-export const titles: Record<View, { title: string; description: string }> = {
+const titles: Record<View, { title: string; description: string }> = {
   all: {
     title: "Vos ports, sous contrôle.",
     description:
@@ -34,7 +36,7 @@ export const titles: Record<View, { title: string; description: string }> = {
   old: {
     title: "Encore utiles, ces serveurs ?",
     description:
-      "Ces processus tournent depuis plus de 8 heures. Prenez un instant pour les vérifier.",
+      "Ces processus tournent depuis plus de {hours} heures. Prenez un instant pour les vérifier.",
   },
   system: {
     title: "Le Mac et ses outils",
@@ -46,4 +48,16 @@ export const titles: Record<View, { title: string; description: string }> = {
     description:
       "Votre historique d’arrêt reste sur ce Mac. Aucun compte, aucune synchronisation.",
   },
+  settings: {
+    title: "Portlight, à votre façon",
+    description:
+      "Vos réglages restent sur ce Mac. Les protections du moteur Docker et de macOS ne changent pas.",
+  },
 };
+export function heading(view: View, reviewHours: number) {
+  const { title, description } = titles[view];
+  return {
+    title,
+    description: description.replace("{hours}", `${reviewHours}`),
+  };
+}

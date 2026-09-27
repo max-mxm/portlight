@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "Portlight",
+        "visible": false,
         "width": 1220,
         "height": 820,
         "minWidth": 800,

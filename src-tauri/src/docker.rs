@@ -1,7 +1,7 @@
-use crate::{model::Service, process::output};
+use crate::{model::Service, process::output, project};
 use serde::Deserialize;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -22,6 +22,7 @@ struct Row {
     id: String,
     name: String,
     ports: String,
+    compose: String,
 }
 #[derive(Deserialize)]
 struct Details {
@@ -57,22 +58,54 @@ pub fn port_bindings(value: &str) -> Vec<(u16, String)> {
         .collect()
 }
 
-pub fn list() -> Result<Vec<Service>, String> {
+const COMPOSE_LABEL: &str = "com.docker.compose.project";
+
+/// Running containers as (id, name, compose project).
+fn rows(bin: &str, filter: Option<&str>) -> Result<Vec<Row>, String> {
+    let label = filter.map(|project| format!("label={COMPOSE_LABEL}={project}"));
+    let mut args = vec![
+        "ps",
+        "--no-trunc",
+        "--format",
+        "{\"id\":\"{{.ID}}\",\"name\":\"{{.Names}}\",\"ports\":\"{{.Ports}}\",\"compose\":\"{{.Label \"com.docker.compose.project\"}}\"}",
+    ];
+    if let Some(label) = &label {
+        args.extend(["--filter", label]);
+    }
+    let text = output(bin, &args, Duration::from_secs(4))?;
+    text.lines()
+        .filter(|s| !s.is_empty())
+        .map(|line| {
+            serde_json::from_str(line).map_err(|e| format!("Réponse Docker invalide : {e}"))
+        })
+        .collect()
+}
+
+/// Every running container of a Compose project, ports or not: (id, name).
+pub fn compose_containers(project: &str) -> Result<Vec<(String, String)>, String> {
+    let bin = binary().ok_or("Docker indisponible")?;
+    let mut items: Vec<(String, String)> = rows(&bin, Some(project))?
+        .into_iter()
+        .filter(|row| row.compose == project)
+        .map(|row| (row.id, row.name))
+        .collect();
+    items.sort_by(|a, b| a.1.cmp(&b.1));
+    Ok(items)
+}
+
+pub fn list(roots: &[String]) -> Result<Vec<Service>, String> {
     let bin = binary().ok_or("Docker n’est pas installé")?;
-    let text = output(
-        &bin,
-        &[
-            "ps",
-            "--no-trunc",
-            "--format",
-            "{\"id\":\"{{.ID}}\",\"name\":\"{{.Names}}\",\"ports\":\"{{.Ports}}\"}",
-        ],
-        Duration::from_secs(4),
-    )?;
+    let rows = rows(&bin, None)?;
+    let mut compose: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for row in rows.iter().filter(|r| !r.compose.is_empty()) {
+        compose
+            .entry(row.compose.clone())
+            .or_default()
+            .push(row.name.clone());
+    }
+    compose.values_mut().for_each(|names| names.sort());
     let mut services = Vec::new();
-    for line in text.lines().filter(|s| !s.is_empty()) {
-        let row: Row =
-            serde_json::from_str(line).map_err(|e| format!("Réponse Docker invalide : {e}"))?;
+    for row in rows {
         let bindings = port_bindings(&row.ports);
         if bindings.is_empty() {
             continue;
@@ -100,19 +133,13 @@ pub fn list() -> Result<Vec<Service>, String> {
             id: format!("docker:{}:{}", row.id, detail.started),
             pid: 0,
             name: row.name.clone(),
-            project: detail
-                .directory
-                .split_once("/GitHub/")
-                .and_then(|(_, relative)| relative.split('/').next())
-                .filter(|p| !p.is_empty())
-                .map(str::to_owned)
-                .unwrap_or_else(|| {
-                    if detail.project.is_empty() {
-                        "Docker".into()
-                    } else {
-                        detail.project
-                    }
-                }),
+            project: project::name(&detail.directory, roots).unwrap_or_else(|| {
+                if detail.project.is_empty() {
+                    "Docker".into()
+                } else {
+                    detail.project
+                }
+            }),
             kind: "docker".into(),
             ports,
             addresses,
@@ -132,6 +159,12 @@ pub fn list() -> Result<Vec<Service>, String> {
             stoppable: true,
             reason: None,
             stop_command: format!("docker stop {}", row.name),
+            cpu_percent: None,
+            memory_bytes: None,
+            parents: vec![],
+            launch_group: vec![],
+            compose_containers: compose.get(&row.compose).cloned().unwrap_or_default(),
+            compose_project: (!row.compose.is_empty()).then(|| row.compose.clone()),
             identity: detail.started,
             container_id: Some(row.id),
         });

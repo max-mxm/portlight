@@ -1,7 +1,9 @@
 use crate::{
-    docker,
+    docker, lineage,
     model::{Service, Snapshot},
     process::{self, output},
+    project,
+    settings::{self, Settings},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -47,6 +49,41 @@ pub fn parse_lsof(text: &str) -> BTreeMap<u32, Listener> {
     result
 }
 
+/// Adds the sockets of `netstat -anv -p tcp` to the lsof inventory.
+pub fn parse_netstat(text: &str, result: &mut BTreeMap<u32, Listener>) {
+    for line in text.lines().filter(|l| l.contains("LISTEN")) {
+        let cols: Vec<&str> = line.split_whitespace().collect();
+        if cols.len() < 10 {
+            continue;
+        }
+        let Some(owner) = cols.iter().skip(6).find(|c| {
+            c.rsplit_once(':')
+                .is_some_and(|(_, p)| p.parse::<u32>().is_ok())
+        }) else {
+            continue;
+        };
+        let Some((name, pid)) = owner.rsplit_once(':') else {
+            continue;
+        };
+        let Ok(pid) = pid.parse::<u32>() else {
+            continue;
+        };
+        let Some((address, port)) = cols[3].rsplit_once('.') else {
+            continue;
+        };
+        let Ok(port) = port.parse::<u16>() else {
+            continue;
+        };
+        let item = result.entry(pid).or_insert_with(|| Listener {
+            pid,
+            name: name.into(),
+            ..Default::default()
+        });
+        item.ports.insert(port);
+        item.addresses.insert(address.into());
+    }
+}
+
 fn listeners() -> Result<(BTreeMap<u32, Listener>, Vec<String>), String> {
     let text = output(
         "/usr/sbin/lsof",
@@ -61,39 +98,7 @@ fn listeners() -> Result<(BTreeMap<u32, Listener>, Vec<String>), String> {
         &["-anv", "-p", "tcp"],
         Duration::from_secs(4),
     ) {
-        Ok(text) => {
-            for line in text.lines().filter(|l| l.contains("LISTEN")) {
-                let cols: Vec<&str> = line.split_whitespace().collect();
-                if cols.len() < 10 {
-                    continue;
-                }
-                let Some(owner) = cols.iter().skip(6).find(|c| {
-                    c.rsplit_once(':')
-                        .is_some_and(|(_, p)| p.parse::<u32>().is_ok())
-                }) else {
-                    continue;
-                };
-                let Some((name, pid)) = owner.rsplit_once(':') else {
-                    continue;
-                };
-                let Ok(pid) = pid.parse::<u32>() else {
-                    continue;
-                };
-                let Some((address, port)) = cols[3].rsplit_once('.') else {
-                    continue;
-                };
-                let Ok(port) = port.parse::<u16>() else {
-                    continue;
-                };
-                let item = result.entry(pid).or_insert_with(|| Listener {
-                    pid,
-                    name: name.into(),
-                    ..Default::default()
-                });
-                item.ports.insert(port);
-                item.addresses.insert(address.into());
-            }
-        }
+        Ok(text) => parse_netstat(&text, &mut result),
         Err(_) => warnings.push(
             "Certains ports système peuvent ne pas être visibles sans droits administrateur."
                 .into(),
@@ -102,9 +107,57 @@ fn listeners() -> Result<(BTreeMap<u32, Listener>, Vec<String>), String> {
     Ok((result, warnings))
 }
 
-fn project(cwd: &str, name: &str) -> String {
-    if let Some((_, relative)) = cwd.split_once("/GitHub/") {
-        return relative.split('/').next().unwrap_or(name).to_owned();
+const DEVELOPMENT: &[&str] = &[
+    "node", "bun", "deno", "python", "ruby", "php", "java", "redis", "postgres", "nginx", "caddy",
+    "uvicorn", "cargo",
+];
+
+pub struct Classification {
+    pub kind: &'static str,
+    pub stoppable: bool,
+    pub reason: Option<&'static str>,
+}
+
+/// Only development processes owned by the user can be stopped. The Docker
+/// engine, macOS binaries and Portlight itself are always protected.
+pub fn classify(
+    name: &str,
+    command: &str,
+    uid: u32,
+    own_uid: u32,
+    is_self: bool,
+    extra: &[String],
+) -> Classification {
+    let is_docker = name.starts_with("com.docker") || name.starts_with("Docker");
+    let native_path = command.starts_with("/System/")
+        || command.starts_with("/usr/libexec/")
+        || command.starts_with("/usr/sbin/");
+    let lower = name.to_ascii_lowercase();
+    let development = !is_docker
+        && !native_path
+        && (DEVELOPMENT.iter().any(|n| lower.starts_with(n))
+            || extra.iter().any(|n| lower.starts_with(n.as_str())));
+    let protected = !development || uid != own_uid || is_self;
+    Classification {
+        kind: if development {
+            "process"
+        } else if native_path || uid != own_uid {
+            "system"
+        } else {
+            "tool"
+        },
+        stoppable: !protected,
+        reason: protected.then_some(if is_docker {
+            "Le moteur Docker est protégé. Arrêtez le conteneur concerné."
+        } else {
+            "Outil ou service système protégé : fermez-le depuis son application."
+        }),
+    }
+}
+
+fn project(cwd: &str, name: &str, roots: &[String]) -> String {
+    if let Some(project) = project::name(cwd, roots) {
+        return project;
     }
     if cwd.is_empty()
         || cwd == "/"
@@ -120,8 +173,13 @@ fn project(cwd: &str, name: &str) -> String {
 }
 
 pub fn snapshot() -> Result<Snapshot, String> {
+    snapshot_with(&settings::load())
+}
+
+pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
     let (listeners, mut warnings) = listeners()?;
-    let (mut services, docker_available) = match docker::list() {
+    let table = process::table()?;
+    let (mut services, docker_available) = match docker::list(&settings.project_roots) {
         Ok(items) => (items, true),
         Err(error) => {
             if docker::binary().is_some() {
@@ -135,8 +193,13 @@ pub fn snapshot() -> Result<Snapshot, String> {
         .flat_map(|s| s.ports.iter().copied())
         .collect();
     let own_uid = unsafe { libc::geteuid() };
+    let own_pid = std::process::id();
+    let listening: BTreeMap<u32, Vec<u16>> = listeners
+        .values()
+        .map(|l| (l.pid, l.ports.iter().copied().collect()))
+        .collect();
     for (_, listener) in listeners {
-        let Ok(meta) = process::metadata(listener.pid) else {
+        let Some(meta) = table.get(&listener.pid) else {
             continue;
         };
         let cwd = process::cwd(listener.pid);
@@ -149,25 +212,14 @@ pub fn snapshot() -> Result<Snapshot, String> {
         if ports.is_empty() {
             continue;
         }
-        let native_path = meta.command.starts_with("/System/")
-            || meta.command.starts_with("/usr/libexec/")
-            || meta.command.starts_with("/usr/sbin/");
-        let development = [
-            "node", "bun", "deno", "python", "ruby", "php", "java", "redis", "postgres", "nginx",
-            "caddy", "uvicorn", "cargo",
-        ]
-        .iter()
-        .any(|n| listener.name.to_ascii_lowercase().starts_with(n))
-            && !native_path;
-        let protected =
-            is_docker || !development || meta.uid != own_uid || listener.pid == std::process::id();
-        let kind = if development {
-            "process"
-        } else if native_path || meta.uid != own_uid {
-            "system"
-        } else {
-            "tool"
-        };
+        let class = classify(
+            &listener.name,
+            &meta.command,
+            meta.uid,
+            own_uid,
+            listener.pid == own_pid,
+            &settings.dev_binaries,
+        );
         let name = if meta.command.starts_with("next-server") {
             "Next.js".into()
         } else if meta.command.contains("vite") {
@@ -182,30 +234,29 @@ pub fn snapshot() -> Result<Snapshot, String> {
         services.push(Service {
             id: format!("process:{}:{}", listener.pid, meta.identity),
             pid: listener.pid,
-            project: project(&cwd, &name),
+            project: project(&cwd, &name, &settings.project_roots),
             name,
-            kind: kind.into(),
+            kind: class.kind.into(),
             ports,
             addresses: listener.addresses.into_iter().collect(),
             exposed,
-            command: meta.command,
+            command: meta.command.clone(),
             cwd,
             elapsed_seconds: meta.elapsed,
-            stoppable: !protected,
-            reason: if protected {
-                Some(
-                    if is_docker {
-                        "Le moteur Docker est protégé. Arrêtez le conteneur concerné."
-                    } else {
-                        "Outil ou service système protégé : fermez-le depuis son application."
-                    }
-                    .into(),
-                )
-            } else {
-                None
-            },
+            stoppable: class.stoppable,
+            reason: class.reason.map(str::to_owned),
             stop_command: format!("kill -TERM {}", listener.pid),
-            identity: meta.identity,
+            cpu_percent: Some(meta.cpu),
+            memory_bytes: Some(meta.rss_kb * 1024),
+            parents: lineage::parents(&table, listener.pid, &listening),
+            launch_group: if class.stoppable {
+                lineage::launch_group(&table, listener.pid, own_uid, own_pid, &listening)
+            } else {
+                vec![]
+            },
+            compose_project: None,
+            compose_containers: vec![],
+            identity: meta.identity.clone(),
             container_id: None,
         });
     }
@@ -244,9 +295,75 @@ mod tests {
         assert_eq!(
             project(
                 "/Users/a/Documents/GitHub/portfolio/.claude/worktrees/demo",
-                "node"
+                "node",
+                &[]
             ),
             "portfolio"
         );
+        assert_eq!(project("/", "rapportd", &[]), "rapportd");
+        assert_eq!(project("/Users/a/sites/blog", "ruby", &[]), "blog");
+    }
+    #[test]
+    fn netstat_adds_launchd_sockets() {
+        let text = "Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)          rxbytes      txbytes  rhiwat  shiwat          process:pid    state  options\n\
+tcp4       0      0  127.0.0.1.6402         *.*                    LISTEN                 0            0  131072  131072          netsimd:94783  00000 00000006 00000000028d0f85 00000001 00000800      2      0 000000\n\
+tcp6       0      0  ::1.54833              *.*                    LISTEN                 0            0  131072  131072          netsimd:94783  00100 00000006 00000000028d0f83 00000001 00000800      1      0 000000\n\
+tcp4       0      0  *.8021                 *.*                    LISTEN                 0            0  131072  131072       launchd:1  00100 00000006 00000000028d0f80 00000001 00000800      1      0 000000\n\
+tcp4       0      0  127.0.0.1.50000        127.0.0.1.3000         ESTABLISHED            0            0  131072  131072          node:42  00100 00000006 00000000028d0f80 00000001 00000800      1      0 000000\n";
+        let mut result = BTreeMap::new();
+        parse_netstat(text, &mut result);
+        assert_eq!(result.len(), 2);
+        let netsim = &result[&94783];
+        assert_eq!(netsim.name, "netsimd");
+        assert_eq!(
+            netsim.ports.iter().copied().collect::<Vec<_>>(),
+            vec![6402, 54833]
+        );
+        assert!(netsim.addresses.contains("::1"));
+        assert!(result[&1].addresses.contains("*"));
+        assert!(
+            !result.contains_key(&42),
+            "Seuls les sockets en écoute comptent"
+        );
+    }
+    #[test]
+    fn classification_protects_engine_and_system() {
+        let dev = classify("node", "node server.js", 501, 501, false, &[]);
+        assert!(dev.stoppable);
+        assert_eq!(dev.kind, "process");
+        let docker = classify(
+            "com.docker.backend",
+            "/Applications/Docker.app/x",
+            501,
+            501,
+            false,
+            &["com".into()],
+        );
+        assert!(!docker.stoppable);
+        assert!(docker.reason.unwrap().contains("Docker"));
+        let other_user = classify("postgres", "postgres -D /x", 0, 501, false, &[]);
+        assert_eq!((other_user.kind, other_user.stoppable), ("process", false));
+        let native = classify("python3", "/usr/libexec/python3 x", 501, 501, false, &[]);
+        assert_eq!((native.kind, native.stoppable), ("system", false));
+        let itself = classify("node", "node", 501, 501, true, &[]);
+        assert!(!itself.stoppable);
+        let tool = classify(
+            "idea",
+            "/Applications/IntelliJ IDEA.app/x",
+            501,
+            501,
+            false,
+            &[],
+        );
+        assert_eq!((tool.kind, tool.stoppable), ("tool", false));
+        let extra = classify(
+            "mysqld",
+            "/opt/homebrew/bin/mysqld",
+            501,
+            501,
+            false,
+            &["mysqld".into()],
+        );
+        assert!(extra.stoppable);
     }
 }

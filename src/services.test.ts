@@ -1,23 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { duration, isOld, visibleServices } from "./services";
-import type { Service } from "./types";
-const fixture = (patch: Partial<Service> = {}): Service => ({
-  id: "1",
-  pid: 42,
-  name: "node",
-  project: "storefront",
-  kind: "process",
-  ports: [3000],
-  addresses: ["*"],
-  exposed: true,
-  command: "next-server",
-  cwd: "/GitHub/storefront/apps/web",
-  elapsedSeconds: 36000,
-  stoppable: true,
-  reason: null,
-  stopCommand: "kill -TERM 42",
-  ...patch,
-});
+import {
+  cpu,
+  duration,
+  isOld,
+  isWebPort,
+  memory,
+  paletteMatches,
+  portQuery,
+  stopCommand,
+  visibleServices,
+} from "./services";
+import { fixture } from "./test/fixture";
 describe("Recherche et périmètre des actions", () => {
   it("recherche un port et distingue les services protégés", () => {
     const list = [
@@ -33,6 +26,13 @@ describe("Recherche et périmètre des actions", () => {
     expect(isOld(fixture({ kind: "docker" }))).toBe(false);
     expect(isOld(fixture({ elapsedSeconds: 28799 }))).toBe(false);
   });
+  it("applique le délai de vérification réglé", () => {
+    const service = fixture({ elapsedSeconds: 3 * 3600 });
+    expect(isOld(service, 2)).toBe(true);
+    expect(isOld(service, 4)).toBe(false);
+    expect(visibleServices([service], "old", "", "", 2)).toHaveLength(1);
+    expect(visibleServices([service], "old", "", "")).toHaveLength(0);
+  });
   it("filtre les projets indépendamment de la recherche", () => {
     expect(visibleServices([fixture()], "all", "NEXT", "storefront")).toHaveLength(
       1,
@@ -44,5 +44,56 @@ describe("Recherche et périmètre des actions", () => {
   it("formate les durées sans arrondi trompeur", () => {
     expect(duration(151028)).toBe("1 j 17 h");
     expect(duration(36060)).toBe("10 h 01");
+  });
+  it("formate les ressources", () => {
+    expect(memory(null)).toBe("—");
+    expect(memory(512 * 1024)).toBe("< 1 Mo");
+    expect(memory(180 * 1024 * 1024)).toBe("180 Mo");
+    expect(memory(1.5 * 1024 ** 3)).toBe("1,5 Go");
+    expect(cpu(12.25)).toBe("12,3 %");
+    expect(cpu(null)).toBe("—");
+  });
+});
+
+describe("Palette et ports", () => {
+  const list = [
+    fixture({ id: "a", ports: [3000] }),
+    fixture({ id: "b", ports: [13000], name: "api" }),
+    fixture({ id: "c", ports: [5432], kind: "docker", name: "db" }),
+  ];
+  it("reconnaît une recherche de port", () => {
+    expect(portQuery(":3000")).toBe(3000);
+    expect(portQuery(" 8080 ")).toBe(8080);
+    expect(portQuery(":70000")).toBeNull();
+    expect(portQuery("next")).toBeNull();
+  });
+  it("cible le port exact, pas un port qui le contient", () => {
+    expect(paletteMatches(list, ":3000").map((s) => s.id)).toEqual(["a"]);
+    expect(paletteMatches(list, "api").map((s) => s.id)).toEqual(["b"]);
+    expect(paletteMatches(list, ":4000")).toHaveLength(0);
+  });
+  it("ne propose pas le navigateur pour les ports non web", () => {
+    expect(isWebPort(3000)).toBe(true);
+    expect(isWebPort(5432)).toBe(false);
+    expect(isWebPort(6379)).toBe(false);
+  });
+});
+
+describe("Commandes d’arrêt affichées", () => {
+  const service = fixture({
+    launchGroup: [
+      { pid: 40, name: "pnpm", command: "pnpm dev", ports: [] },
+      { pid: 42, name: "node", command: "next-server", ports: [3000] },
+    ],
+    composeContainers: ["app-db-1", "app-mail-1"],
+  });
+  it("décrit chaque portée", () => {
+    expect(stopCommand(service, "service", false)).toBe("kill -TERM 42");
+    expect(stopCommand(service, "service", true)).toBe("kill -KILL 42");
+    expect(stopCommand(service, "group", false)).toBe("kill -TERM 40 42");
+    expect(stopCommand(service, "group", true)).toBe("kill -KILL 40 42");
+    expect(stopCommand(service, "compose", false)).toBe(
+      "docker stop app-db-1 app-mail-1",
+    );
   });
 });

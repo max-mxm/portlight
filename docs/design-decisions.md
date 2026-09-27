@@ -16,7 +16,16 @@ Space Grotesk Variable pour l’interface ; JetBrains Mono Variable pour les don
 
 - Navigation, recherche, actions rapides et protections du moteur Rust conservées.
 - Contraste AA pour les paires de texte sur les couleurs saturées : blanc/violet environ 4,50:1, encre/rose supérieur à 4,5:1, encre/vert et encre/jaune supérieurs à 7:1.
-- Mode sombre avec les mêmes couleurs vives et des textes secondaires éclaircis.
+- Mode sombre avec les mêmes couleurs vives et des textes secondaires éclaircis. Le thème suit macOS par défaut ; un sélecteur carré à trois positions (Système, Clair, Sombre) reste dans la barre latérale.
 - Contour de focus visible ; dialogues avec confinement du focus et retour à l’élément d’origine.
 - Pas de flou décoratif, pas de mouvement de mise en page au survol ; mouvement réduit respecté.
 - Actualisation toutes les 10 secondes, suspendue si la fenêtre est masquée ou pendant un arrêt. Heure du relevé et état ancien conservés.
+
+## Portées d’arrêt et barre des menus
+
+- L’arrêt par défaut vise toujours le seul processus ou conteneur en écoute. Les portées plus larges (lanceur et descendants, projet Compose) sont proposées dans les détails, dans un encadré à liseré jaune, avec un bouton secondaire : elles ne concurrencent pas l’action principale.
+- Toute confirmation liste exactement les processus (PID, nom, ports) ou conteneurs concernés, avec la commande équivalente.
+- Les ports non web (PostgreSQL, SMTP, ADB…) s’affichent en pointillés et ne sont pas cliquables.
+- CPU et mémoire apparaissent sous la durée d’activité, en petit et en couleur discrète, pour aider à trier « À vérifier » sans alourdir la table.
+- La barre des menus utilise une icône modèle monochrome (carré brutaliste et port central) et le nombre de ports occupés. Ses actions d’arrêt ouvrent la fenêtre et passent par la même confirmation.
+- Les réglages tiennent dans un seul panneau, champs à contour de 2 px, bouton principal violet. Les protections (moteur Docker, services macOS) sont rappelées à côté des champs qui pourraient les concerner.

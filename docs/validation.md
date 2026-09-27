@@ -17,3 +17,13 @@ L’interface et le moteur sont fonctionnels. Cette version ne constitue pas une
 ## Refonte brutaliste
 
 Version reconstruite avec les fontes locales Space Grotesk et JetBrains Mono. Contrôle visuel effectué dans l’application Mac sur la vue d’ensemble, la liste complète des services avec noms de conteneurs longs, le mode sombre et la palette ⌘K. Tous les composants de l’interface web utilisent un rayon de bordure nul. Build TypeScript/Vite et quatre tests Vitest réussis. Aucun arrêt de service n’a été effectué pour cette vérification de style.
+
+## Fiabilité des arrêts, tests et fonctionnalités
+
+- Table des processus lue en un seul appel `ps` ; relevé réel en environ 1,4 s en debug avec 15 services.
+- Lignée vérifiée sur un vrai monorepo pnpm : `next-server` ← `pnpm` ← `node dotenv` ← `pnpm` ← `node pnpm` ← `zsh`. Groupe de 5 processus proposé ; le shell et l’agent parent restent exclus.
+- Projets Compose détectés sur la machine (`acme` : 3 conteneurs, `storefront_sync` : 2).
+- 19 tests Rust, dont un test d’intégration qui crée son propre shell, un lanceur `nodemon.js` et un serveur Node, puis arrête le groupe et vérifie la libération du port. Aucun service préexistant arrêté.
+- 17 tests Vitest, dont des tests de composants (confirmation par portée, palette `:port`, ports non web, arrêt forcé par portée, ouverture dans l’éditeur, Compose).
+- Interface contrôlée dans le navigateur intégré avec un IPC simulé à partir d’un relevé réel : détails, confirmation de groupe, bascule vers l’arrêt forcé, palette, réglages (délai appliqué aux compteurs et aux titres), thèmes clair et sombre.
+- Application lancée avec `npm run app:dev` sans erreur. L’icône de la barre des menus, le masquage à la fermeture et le lancement à la connexion n’ont pas pu être contrôlés visuellement dans cette session (pas d’accès à l’écran).

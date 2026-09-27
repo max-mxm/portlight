@@ -58,28 +58,37 @@ src-tauri/target/release/portlight --scan-json
 - Group servers by GitHub repository, including those started in a worktree.
 - Review development processes that have been running for at least 8 hours in the “To review” view (shown as “À vérifier” in the French UI). This threshold does not prove that a server is unused.
 - Request a normal stop (`SIGTERM`), check whether ports are released, and use a force stop if the process resists the normal stop.
-- Stop the relevant Docker container with `docker stop --time 5`, without stopping the Docker engine.
-- Open a port in the browser using HTTP, or copy its stop command from the details dialog.
-- Keep the last 50 actions in local history, pause automatic refresh, and switch between light and dark themes.
-- `⌘K`: quick actions. `⌘F`: search. `⌘R`: refresh.
+- When `npm`, `pnpm`, `turbo`, `nodemon`… restarts the server, stop its launcher and the processes it started in one confirmed action. The details dialog shows the parent chain of every process.
+- Stop the relevant Docker container with `docker stop --time 5`, or every container of its Compose project, without stopping the Docker engine.
+- Check recent CPU and resident memory of each development process.
+- Open a web port in the browser (database, SMTP or ADB ports are not proposed), open the project folder in Finder or in your editor, or copy the stop command.
+- Keep the last 50 actions in local history, pause automatic refresh, and follow the macOS theme or force light or dark.
+- Menu bar: the number of occupied development ports and a stop shortcut per service, always confirmed in the window. Closing the window keeps Portlight in the menu bar; quit it from the menu.
+- Settings: “To review” delay, project folders outside `GitHub`, extra development programs, preferred editor, and optional launch at login.
+- `⌘K`: quick actions, type `:3000` to free port 3000. `⌘F`: search. `⌘R`: refresh.
 
 ## How it works
 
-1. Rust collects listening TCP ports with `lsof` and `netstat`, then enriches process metadata with `ps`. When Docker is available, published ports are associated with their containers.
+1. Rust collects listening TCP ports with `lsof` and `netstat`, then reads the whole process table with a single `ps` call (metadata, parents, CPU, memory). When Docker is available, published ports are associated with their containers and Compose projects.
 2. The interface receives an inventory through Tauri IPC commands. It groups services by project and lets you search for a port or process.
-3. Stopping a service requires confirmation. The backend scans again and revalidates the target before sending `SIGTERM` or stopping the relevant Docker container.
+3. Stopping a service, its launcher group or its Compose project requires confirmation. The backend scans again and revalidates every target (PID and start time, launcher identity, list of containers) before sending `SIGTERM` or stopping containers.
 4. Portlight checks whether the ports have been released. If a process resists the normal stop, a force-stop action becomes available.
 
 Rust sends the signals; commands supplied by the interface are never interpreted by a shell. The theme and history stay in the app’s local storage. There is no telemetry, account, or remote backend. The compiled frontend and fonts are bundled with the app.
 
 ## Architecture
 
-- `src-tauri/src/scan.rs`: TCP inventory through lsof and netstat, classification, and project detection.
+- `src-tauri/src/scan.rs`: TCP inventory through lsof and netstat, and classification.
+- `src-tauri/src/lineage.rs`: parent chain and launcher groups that can be stopped safely.
+- `src-tauri/src/project.rs`: project names from configured folders, git root of a service.
 - `src-tauri/src/docker.rs`: containers, published ports, Compose metadata, and uptime.
-- `src-tauri/src/actions.rs`: target revalidation, signals, and checks after stopping.
-- `src-tauri/src/process.rs`: command execution without a shell, timeouts, and process metadata.
+- `src-tauri/src/actions.rs`: target revalidation, signals, Compose stops, folder opening, and checks after stopping.
+- `src-tauri/src/process.rs`: command execution without a shell, timeouts, and the process table.
+- `src-tauri/src/settings.rs`: validated settings in `~/Library/Application Support/dev.portlight.desktop`.
+- `src-tauri/src/tray.rs`: menu bar item.
 - `src-tauri/src/lib.rs`: typed IPC commands; system work runs outside the UI thread.
-- `src/`: interface, search, groups, shortcuts, dialogs, and history.
+- `src/hooks/`: inventory, history, shortcuts, theme, and settings state.
+- `src/`: interface, search, groups, dialogs, and history.
 - `docs/design-decisions.md`: adaptation of the UI UX Pro Max design system to the macOS app.
 
 ## Current limitations
@@ -88,7 +97,9 @@ This first version lists **listening TCP ports**, not all UDP sockets or outgoin
 
 Process identity checks use the PID and start time reported by `ps` (with one-second precision), with another check before sending a signal. This reduces the risk of PID reuse but does not provide the atomic guarantee of a process handle. A supervisor may restart a process; Portlight reports when a port remains occupied after a stop.
 
-This version has no background service or automatic launch at login. The inventory refreshes every 10 seconds while the window is visible. History records only actions performed in Portlight, rather than continuously monitoring the system.
+Portlight installs no background service. The inventory refreshes every 10 seconds while the window is visible; when the window is hidden, Portlight stays in the menu bar and refreshes every 30 seconds until you quit it. Launch at login is off by default and uses a LaunchAgent when enabled. History records only actions performed in Portlight, rather than continuously monitoring the system.
+
+A launcher group is offered only when the launcher was started from a shell or reparented to launchd, and when every member belongs to the current user, is not a macOS binary and is not Portlight or one of its parents. A launcher started directly by an IDE or an agent is never included. CPU and memory are not collected for containers.
 
 ## Checks
 
@@ -101,7 +112,7 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-The Rust integration test starts its own Node server on an ephemeral port. It checks stale process identity, resistance to SIGTERM, forced termination with SIGKILL, and port release. It does not stop any pre-existing service.
+The Rust integration tests start their own Node servers on ephemeral ports. They check stale process identity, resistance to SIGTERM, forced termination with SIGKILL, port release, and the stop of a launcher group started from a test shell. They do not stop any pre-existing service. Component tests run with Testing Library in jsdom.
 
 ## Contributing
 

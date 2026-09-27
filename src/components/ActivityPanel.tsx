@@ -2,10 +2,10 @@ import { Check, History, TriangleAlert } from "lucide-react";
 import type { Activity } from "../types";
 export function ActivityPanel({
   activity,
-  setActivity,
+  onClear,
 }: {
   activity: Activity[];
-  setActivity: (items: Activity[]) => void;
+  onClear: () => void;
 }) {
   return (
     <section className="history-panel">
@@ -13,7 +13,7 @@ export function ActivityPanel({
         <h2>Journal des arrêts</h2>
         <span className="count-badge">{activity.length}</span>
         {activity.length > 0 && (
-          <button className="text-button" onClick={() => setActivity([])}>
+          <button className="text-button" onClick={onClear}>
             Effacer l’historique
           </button>
         )}

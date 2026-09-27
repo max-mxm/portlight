@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { RefObject } from "react";
-import type { Service, Snapshot, View } from "../types";
+import type { Service, Snapshot, StopRequest, View } from "../types";
 import { views } from "../navigation";
 import { ServiceRow } from "./ServiceRow";
 interface Props {
@@ -27,8 +27,9 @@ interface Props {
   groups: [string, Service[]][];
   busy: string | null;
   setDetails: (s: Service) => void;
-  setConfirm: (value: { service: Service; force: boolean }) => void;
+  setConfirm: (value: StopRequest) => void;
   open: (s: Service, port: number) => Promise<void>;
+  reviewHours: number;
 }
 export function ServicesPanel({
   project,
@@ -46,6 +47,7 @@ export function ServicesPanel({
   setDetails,
   setConfirm,
   open,
+  reviewHours,
 }: Props) {
   return (
     <section className="services-panel" aria-label="Services en écoute">
@@ -125,7 +127,10 @@ export function ServicesPanel({
                   busy={busy === s.id}
                   disabled={busy !== null}
                   onDetails={() => setDetails(s)}
-                  onStop={() => setConfirm({ service: s, force: false })}
+                  reviewHours={reviewHours}
+                  onStop={() =>
+                    setConfirm({ service: s, force: false, scope: "service" })
+                  }
                   onOpen={(port) => void open(s, port)}
                 />
               ))}
@@ -157,7 +162,7 @@ export function ServicesPanel({
                 : !snapshot
                   ? "Le premier relevé apparaîtra dès que l’application Mac sera ouverte."
                   : view === "old"
-                    ? "Aucun serveur de développement ne tourne depuis plus de 8 heures."
+                    ? `Aucun serveur de développement ne tourne depuis plus de ${reviewHours} heures.`
                     : "Les nouveaux services apparaîtront au prochain relevé."}
             </p>
             {query && (
