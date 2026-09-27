@@ -17,7 +17,7 @@ export const views = [
 ] as const;
 export const titles: Record<View, { title: string; description: string }> = {
   all: {
-    title: "Un Mac, des ports. Tout est clair.",
+    title: "Vos ports, sous contrôle.",
     description:
       "Retrouvez vos services locaux et libérez les ports dont vous n’avez plus besoin.",
   },

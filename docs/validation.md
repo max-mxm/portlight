@@ -13,3 +13,7 @@
 - Formatage Prettier et rustfmt vérifié. Audit npm : aucune vulnérabilité détectée lors de l’installation finale des dépendances.
 
 L’interface et le moteur sont fonctionnels. Cette version ne constitue pas une distribution Developer ID signée et notarisée ; les parcours d’installation sur d’autres Mac n’ont pas été validés.
+
+## Refonte brutaliste
+
+Version reconstruite avec les fontes locales Space Grotesk et JetBrains Mono. Contrôle visuel effectué dans l’application Mac sur la vue d’ensemble, la liste complète des services avec noms de conteneurs longs, le mode sombre et la palette ⌘K. Tous les composants de l’interface web utilisent un rayon de bordure nul. Build TypeScript/Vite et quatre tests Vitest réussis. Aucun arrêt de service n’a été effectué pour cette vérification de style.

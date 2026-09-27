@@ -18,7 +18,6 @@ export function Overview({
 }: Props) {
   return (
     <>
-      {" "}
       <section className="stats" aria-label="Résumé de l’environnement">
         <button className="stat" onClick={() => navigate("all")}>
           <span className="stat-label">

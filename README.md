@@ -2,7 +2,7 @@
 
 Une application Mac pour retrouver les serveurs oubliés, identifier les ports utilisés et arrêter le bon processus ou conteneur.
 
-**Tauri 2 · Rust · React · TypeScript · Vite**. Aucun serveur HTTP en production, aucun compte et aucun service cloud. Interface française, thèmes clair/sombre et typographie système embarquée dans macOS.
+**Tauri 2 · Rust · React · TypeScript · Vite**. Aucun serveur HTTP en production, aucun compte et aucun service cloud. Interface française, thèmes clair/sombre et typographie Space Grotesk / JetBrains Mono embarquée, interface brutaliste carrée et palette inspirée de Monday.
 
 ## Démarrer
 

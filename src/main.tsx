@@ -1,3 +1,5 @@
+import "@fontsource-variable/space-grotesk/wght.css";
+import "@fontsource-variable/jetbrains-mono/wght.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
