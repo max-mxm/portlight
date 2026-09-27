@@ -37,9 +37,9 @@ describe("Recherche et périmètre des actions", () => {
     expect(visibleServices([service], "old", "", "")).toHaveLength(0);
   });
   it("filtre les projets indépendamment de la recherche", () => {
-    expect(visibleServices([fixture()], "all", "NEXT", "storefront")).toHaveLength(
-      1,
-    );
+    expect(
+      visibleServices([fixture()], "all", "NEXT", "storefront"),
+    ).toHaveLength(1);
     expect(visibleServices([fixture()], "all", "", "portfolio")).toHaveLength(
       0,
     );
