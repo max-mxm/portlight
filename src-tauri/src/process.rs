@@ -82,19 +82,21 @@ pub struct ProcessEntry {
     pub uid: u32,
     pub cpu: f32,
     pub rss_kb: u64,
+    /// Exited but not yet reaped by its parent: it holds no socket anymore.
+    pub zombie: bool,
     pub identity: String,
     pub elapsed: u64,
     pub command: String,
 }
 
-const COLUMNS: &str = "pid=,ppid=,uid=,%cpu=,rss=,lstart=,etime=,command=";
+const COLUMNS: &str = "pid=,ppid=,uid=,%cpu=,rss=,stat=,lstart=,etime=,command=";
 
-/// Parses `ps -o pid=,ppid=,uid=,%cpu=,rss=,lstart=,etime=,command=` (LC_ALL=C).
+/// Parses `ps -o pid=,ppid=,uid=,%cpu=,rss=,stat=,lstart=,etime=,command=` (LC_ALL=C).
 pub fn parse_table(text: &str) -> Vec<ProcessEntry> {
     text.lines()
         .filter_map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 11 {
+            if parts.len() < 12 {
                 return None;
             }
             Some(ProcessEntry {
@@ -103,10 +105,11 @@ pub fn parse_table(text: &str) -> Vec<ProcessEntry> {
                 uid: parts[2].parse().ok()?,
                 cpu: parts[3].replace(',', ".").parse().unwrap_or(0.0),
                 rss_kb: parts[4].parse().unwrap_or(0),
+                zombie: parts[5].starts_with('Z'),
                 // lstart: "Sat Sep 27 10:00:00 2026", one-second precision.
-                identity: parts[5..10].join(" "),
-                elapsed: parse_elapsed(parts[10]),
-                command: parts[11..].join(" "),
+                identity: parts[6..11].join(" "),
+                elapsed: parse_elapsed(parts[11]),
+                command: parts[12..].join(" "),
             })
         })
         .collect()
@@ -182,11 +185,14 @@ mod tests {
     #[test]
     fn process_table() {
         let rows = parse_table(
-            "    1     0     0  28.1   7904 Sun Sep 13 00:04:49 2026     14-20:19:10 /sbin/launchd\n\
-             4242  4200   501   0,5 183200 Sat Sep 27 09:12:03 2026        01:02:03 node  /x/next  dev\n\
+            "    1     0     0  28.1   7904 Ss   Sun Sep 13 00:04:49 2026     14-20:19:10 /sbin/launchd\n\
+             4242  4200   501   0,5 183200 S+   Sat Sep 27 09:12:03 2026        01:02:03 node  /x/next  dev\n\
+             4243  4242   501   0.0      0 Z    Sat Sep 27 09:12:04 2026        01:02:02 (node)\n\
              bad line\n",
         );
-        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.len(), 3);
+        assert!(!rows[1].zombie);
+        assert!(rows[2].zombie);
         assert_eq!(rows[0].elapsed, 14 * 86400 + 20 * 3600 + 19 * 60 + 10);
         let node = &rows[1];
         assert_eq!((node.pid, node.ppid, node.uid), (4242, 4200, 501));

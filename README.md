@@ -55,7 +55,7 @@ src-tauri/target/release/portlight --scan-json
 ## Usage
 
 - Search by port, name, PID, command, or project. Filter by project in the sidebar.
-- Group servers by GitHub repository, including those started in a worktree.
+- Group servers by git repository, wherever it is cloned: a worktree is grouped with its main repository.
 - Review development processes that have been running for at least 8 hours in the “To review” view (shown as “À vérifier” in the French UI). This threshold does not prove that a server is unused.
 - Request a normal stop (`SIGTERM`), check whether ports are released, and use a force stop if the process resists the normal stop.
 - When `npm`, `pnpm`, `turbo`, `nodemon`… restarts the server, stop its launcher and the processes it started in one confirmed action. The details dialog shows the parent chain of every process.
@@ -64,14 +64,15 @@ src-tauri/target/release/portlight --scan-json
 - Open a web port in the browser (database, SMTP or ADB ports are not proposed), open the project folder in Finder or in your editor, or copy the stop command.
 - Keep the last 50 actions in local history, pause automatic refresh, and follow the macOS theme or force light or dark.
 - Menu bar: the number of occupied development ports and a stop shortcut per service, always confirmed in the window. Closing the window keeps Portlight in the menu bar; quit it from the menu.
-- Settings: “To review” delay, project folders outside `GitHub`, extra development programs, preferred editor, and optional launch at login.
+- Recognize development servers by program name (Node, Python, Ruby, PHP, Java, .NET, Elixir, databases…) and binaries built inside a repository (`cargo run`, `go run`, air).
+- Settings: “To review” delay, project folders, extra development programs, preferred editor, and optional launch at login.
 - `⌘K`: quick actions, type `:3000` to free port 3000. `⌘F`: search. `⌘R`: refresh.
 
 ## How it works
 
 1. Rust collects listening TCP ports with `lsof` and `netstat`, then reads the whole process table with a single `ps` call (metadata, parents, CPU, memory) and every working folder with a single `lsof` call. When Docker is available, published ports are associated with their containers, images and Compose projects through one `docker ps` and one `docker inspect`. A scan runs six system commands, whatever the number of services.
 2. The interface receives an inventory through Tauri IPC commands. It groups services by project and lets you search for a port or process.
-3. Stopping a service, its launcher group or its Compose project requires confirmation. The backend scans again and revalidates every target (PID and start time, launcher identity, list of containers) before sending `SIGTERM` or stopping containers.
+3. Stopping a service, its launcher group or its Compose project requires confirmation. The backend revalidates the target itself (PID and start time from the process table, container ID and start time from `docker inspect`, launcher identity, list of Compose containers) before sending `SIGTERM` or stopping containers, without scanning the whole machine again.
 4. Portlight checks whether the ports have been released. If a process resists the normal stop, a force-stop action becomes available.
 
 Rust sends the signals; commands supplied by the interface are never interpreted by a shell. The theme and history stay in the app’s local storage. There is no telemetry, account, or remote backend. The compiled frontend and fonts are bundled with the app.

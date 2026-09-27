@@ -1,10 +1,10 @@
 use crate::{
-    docker,
-    model::{ProcessSummary, Service, Snapshot, StopResult},
+    docker, lineage,
+    model::{ProcessSummary, Service, StopResult},
     process, project, scan,
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
     thread,
     time::{Duration, Instant},
@@ -31,22 +31,45 @@ impl Scope {
     }
 }
 
-fn used_ports(ports: &BTreeSet<u16>, snapshot: &Snapshot) -> Vec<u16> {
-    ports
-        .iter()
-        .copied()
-        .filter(|p| snapshot.services.iter().any(|s| s.ports.contains(p)))
-        .collect()
+fn used_ports(ports: &BTreeSet<u16>, listening: &BTreeSet<u16>) -> Vec<u16> {
+    ports.intersection(listening).copied().collect()
 }
 
-pub fn stop(service: Service, force: bool, scope: Scope) -> Result<StopResult, String> {
+fn alive(table: &HashMap<u32, process::ProcessEntry>, pid: u32, identity: &str) -> bool {
+    table
+        .get(&pid)
+        .is_some_and(|p| p.identity == identity && !p.zombie)
+}
+
+fn summary(service: &Service) -> ProcessSummary {
+    ProcessSummary {
+        pid: service.pid,
+        name: service.name.clone(),
+        command: service.command.clone(),
+        ports: service.ports.clone(),
+        identity: service.identity.clone(),
+    }
+}
+
+/// Stops an inventoried service. `inventory` is the snapshot the service
+/// comes from; the target itself is revalidated (PID and start time, or
+/// container ID and start time) without scanning the whole machine again.
+pub fn stop(
+    service: Service,
+    inventory: &[Service],
+    force: bool,
+    scope: Scope,
+) -> Result<StopResult, String> {
     if !service.stoppable {
         return Err(service.reason.unwrap_or("Service protégé".into()));
     }
-    // Validate against a new scan, never trust PID / container supplied by the frontend.
-    let current = scan::snapshot()?;
-    let Some(verified) = current.services.iter().find(|s| s.id == service.id) else {
-        let remaining_ports = used_ports(&service.ports.iter().copied().collect(), &current);
+    let running = match &service.container_id {
+        Some(id) => docker::running(id, &service.identity)?,
+        None => alive(&process::table()?, service.pid, &service.identity),
+    };
+    if !running {
+        let ports = service.ports.iter().copied().collect();
+        let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
         return Ok(StopResult {
             stopped: true,
             message: if remaining_ports.is_empty() {
@@ -57,37 +80,27 @@ pub fn stop(service: Service, force: bool, scope: Scope) -> Result<StopResult, S
             .into(),
             remaining_ports,
         });
-    };
-    if !verified.stoppable {
-        return Err("Ce service ne peut plus être arrêté.".into());
     }
     match scope {
         Scope::Service => stop_service(&service, force),
-        Scope::Group => stop_group(&service, verified, force),
-        Scope::Compose => stop_compose(&service, verified, &current, force),
+        Scope::Group => stop_group(&service, force),
+        Scope::Compose => stop_compose(&service, inventory, force),
     }
 }
 
 fn stop_service(service: &Service, force: bool) -> Result<StopResult, String> {
-    if let Some(id) = &service.container_id {
+    let still_running = if let Some(id) = &service.container_id {
         if force {
             return Err("L’arrêt forcé des conteneurs n’est pas proposé.".into());
         }
         let bin = docker::binary().ok_or("Docker indisponible")?;
         process::output(&bin, &["stop", "--time", "5", id], Duration::from_secs(12))?;
+        docker::running(id, &service.identity)?
     } else {
-        let member = ProcessSummary {
-            pid: service.pid,
-            name: service.name.clone(),
-            command: service.command.clone(),
-            ports: service.ports.clone(),
-            identity: service.identity.clone(),
-        };
-        signal_all(&[member], force)?;
-    }
-    let after = scan::snapshot()?;
-    let still_running = after.services.iter().any(|s| s.id == service.id);
-    let remaining_ports = used_ports(&service.ports.iter().copied().collect(), &after);
+        !signal_all(&[summary(service)], force)?.is_empty()
+    };
+    let ports = service.ports.iter().copied().collect();
+    let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
     let message = if still_running {
         "Le processus résiste à l’arrêt normal. Vous pouvez forcer son arrêt."
     } else if !remaining_ports.is_empty() {
@@ -109,8 +122,8 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
     // Revalidate every member right before the signal.
     let table = process::table()?;
     for member in members {
-        let current = table.get(&member.pid);
-        if current.is_none_or(|p| p.identity != member.identity || p.uid != uid) {
+        let owned = table.get(&member.pid).is_some_and(|p| p.uid == uid);
+        if !owned || !alive(&table, member.pid, &member.identity) {
             return Err("L’identité du processus a changé. Actualisez la liste.".into());
         }
     }
@@ -124,41 +137,49 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
             }
         }
     }
-    let alive = |table: &std::collections::HashMap<u32, process::ProcessEntry>| -> Vec<u32> {
-        members
-            .iter()
-            .filter(|m| table.get(&m.pid).is_some_and(|p| p.identity == m.identity))
-            .map(|m| m.pid)
-            .collect()
-    };
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
         thread::sleep(Duration::from_millis(120));
-        let survivors = process::table().map(|t| alive(&t))?;
+        let table = process::table()?;
+        let survivors: Vec<u32> = members
+            .iter()
+            .filter(|m| alive(&table, m.pid, &m.identity))
+            .map(|m| m.pid)
+            .collect();
         if survivors.is_empty() || Instant::now() >= deadline {
             return Ok(survivors);
         }
     }
 }
 
-fn stop_group(service: &Service, verified: &Service, force: bool) -> Result<StopResult, String> {
-    let (Some(shown), Some(current)) =
-        (service.launch_group.first(), verified.launch_group.first())
-    else {
+fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
+    let Some(shown) = service.launch_group.first() else {
         return Err("Ce service n’a pas de lanceur qui peut être arrêté sans risque.".into());
     };
-    if shown.pid != current.pid || shown.identity != current.identity {
+    // Recompute the group from the current process table.
+    let table = process::table()?;
+    let uid = unsafe { libc::geteuid() };
+    let group = lineage::launch_group(
+        &table,
+        service.pid,
+        uid,
+        std::process::id(),
+        &BTreeMap::new(),
+    );
+    if group
+        .first()
+        .is_none_or(|root| root.pid != shown.pid || root.identity != shown.identity)
+    {
         return Err("Le lanceur de ce service a changé. Actualisez la liste.".into());
     }
-    let survivors = signal_all(&verified.launch_group, force)?;
-    let ports: BTreeSet<u16> = verified
+    let survivors = signal_all(&group, force)?;
+    let ports: BTreeSet<u16> = service
         .launch_group
         .iter()
         .flat_map(|m| m.ports.iter().copied())
         .chain(service.ports.iter().copied())
         .collect();
-    let after = scan::snapshot()?;
-    let remaining_ports = used_ports(&ports, &after);
+    let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
     let message = if !survivors.is_empty() {
         "Certains processus résistent à l’arrêt normal. Vous pouvez forcer leur arrêt."
     } else if !remaining_ports.is_empty() {
@@ -175,19 +196,15 @@ fn stop_group(service: &Service, verified: &Service, force: bool) -> Result<Stop
 
 fn stop_compose(
     service: &Service,
-    verified: &Service,
-    current: &Snapshot,
+    inventory: &[Service],
     force: bool,
 ) -> Result<StopResult, String> {
     if force {
         return Err("L’arrêt forcé des conteneurs n’est pas proposé.".into());
     }
-    let Some(project) = verified.compose_project.as_deref() else {
+    let Some(project) = service.compose_project.as_deref() else {
         return Err("Ce conteneur n’appartient pas à un projet Compose.".into());
     };
-    if service.compose_project.as_deref() != Some(project) {
-        return Err("Le projet Compose a changé. Actualisez la liste.".into());
-    }
     let containers = docker::compose_containers(project)?;
     let names: Vec<&str> = containers.iter().map(|(_, n)| n.as_str()).collect();
     if names != service.compose_containers {
@@ -197,15 +214,14 @@ fn stop_compose(
     let mut args = vec!["stop", "--time", "5"];
     args.extend(containers.iter().map(|(id, _)| id.as_str()));
     process::output(&bin, &args, Duration::from_secs(30))?;
-    let ports: BTreeSet<u16> = current
-        .services
+    let ports: BTreeSet<u16> = inventory
         .iter()
         .filter(|s| s.compose_project.as_deref() == Some(project))
+        .chain(std::iter::once(service))
         .flat_map(|s| s.ports.iter().copied())
         .collect();
-    let after = scan::snapshot()?;
     let still_running = !docker::compose_containers(project)?.is_empty();
-    let remaining_ports = used_ports(&ports, &after);
+    let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
     Ok(StopResult {
         stopped: !still_running,
         message: if still_running {
@@ -319,18 +335,19 @@ mod tests {
             .expect("Le serveur temporaire doit être détecté");
         assert!(service.ports.contains(&port));
         assert!(service.stoppable);
+        // Same PID, other start time: a reused PID must never receive a signal.
         let mut stale = service.clone();
-        stale.id.push_str("-stale");
-        let result = stop(stale, false, Scope::Service).unwrap();
+        stale.identity = "Mon Jan  1 00:00:00 2001".into();
+        let result = stop(stale, &[], false, Scope::Service).unwrap();
         assert!(result.stopped);
         assert!(
             fixture.0.try_wait().unwrap().is_none(),
             "Une identité périmée ne doit envoyer aucun signal"
         );
-        let result = stop(service.clone(), false, Scope::Service).unwrap();
+        let result = stop(service.clone(), &[], false, Scope::Service).unwrap();
         assert!(!result.stopped);
         assert!(result.remaining_ports.contains(&port));
-        let result = stop(service, true, Scope::Service).unwrap();
+        let result = stop(service, &[], true, Scope::Service).unwrap();
         assert!(result.stopped);
         assert!(result.remaining_ports.is_empty());
         let _ = fixture.0.wait();
@@ -387,7 +404,7 @@ mod tests {
             fixture.0.id(),
             "Le shell du test est le grand-parent"
         );
-        let result = stop(service, false, Scope::Group).unwrap();
+        let result = stop(service, &[], false, Scope::Group).unwrap();
         assert!(result.stopped, "{}", result.message);
         assert!(result.remaining_ports.is_empty());
         let _ = std::fs::remove_dir_all(dir);

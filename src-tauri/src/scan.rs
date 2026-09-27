@@ -7,6 +7,7 @@ use crate::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
+    path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -107,10 +108,84 @@ fn listeners() -> Result<(BTreeMap<u32, Listener>, Vec<String>), String> {
     Ok((result, warnings))
 }
 
+/// Every listening TCP port of the machine (lsof + netstat).
+pub fn listening_ports() -> Result<BTreeSet<u16>, String> {
+    let (listeners, _) = listeners()?;
+    Ok(listeners
+        .values()
+        .flat_map(|l| l.ports.iter().copied())
+        .collect())
+}
+
+/// Program names of development servers and databases. A name matches
+/// exactly or followed by a version or suffix: python3.12, redis-server.
 const DEVELOPMENT: &[&str] = &[
-    "node", "bun", "deno", "python", "ruby", "php", "java", "redis", "postgres", "nginx", "caddy",
-    "uvicorn", "cargo",
+    "node",
+    "bun",
+    "deno",
+    "workerd",
+    "esbuild",
+    "python",
+    "uvicorn",
+    "gunicorn",
+    "hypercorn",
+    "ruby",
+    "puma",
+    "rails",
+    "php",
+    "php-fpm",
+    "frankenphp",
+    "java",
+    "dotnet",
+    "beam.smp",
+    "elixir",
+    "cargo",
+    "air",
+    "hugo",
+    "jekyll",
+    "nginx",
+    "caddy",
+    "redis",
+    "valkey",
+    "memcached",
+    "postgres",
+    "mysqld",
+    "mariadbd",
+    "mongod",
 ];
+
+fn program_matches(name: &str, program: &str) -> bool {
+    name.strip_prefix(program).is_some_and(|rest| {
+        rest.chars()
+            .next()
+            .is_none_or(|c| c.is_ascii_digit() || ".-_".contains(c))
+    })
+}
+
+/// A binary built inside a repository (cargo run, air, a compiled server)
+/// or by `go run`, rather than an installed application.
+pub fn locally_built(command: &str, cwd: &str) -> bool {
+    let Some(program) = command.split_whitespace().next() else {
+        return false;
+    };
+    if program.contains("/go-build") && program.contains("/exe/") {
+        return true;
+    }
+    let path = if program.starts_with('/') {
+        PathBuf::from(program)
+    } else if program.contains('/') && cwd.starts_with('/') {
+        Path::new(cwd).join(program)
+    } else {
+        return false;
+    };
+    // App bundles built by a project (Electron…) are not servers.
+    !program.contains(".app/")
+        && path.is_file()
+        && path
+            .parent()
+            .and_then(|dir| project::root(&dir.to_string_lossy()))
+            .is_some()
+}
 
 /// Build daemons listen on a port but are not development servers:
 /// (main class, tool). The class must be a whole argument, not a classpath.
@@ -179,6 +254,7 @@ pub fn classify(
     own_uid: u32,
     is_self: bool,
     extra: &[String],
+    local_build: bool,
 ) -> Classification {
     let is_docker = container_engine(name);
     let native_path = command.starts_with("/System/")
@@ -189,8 +265,9 @@ pub fn classify(
     let development = !is_docker
         && !native_path
         && daemon.is_none()
-        && (DEVELOPMENT.iter().any(|n| lower.starts_with(n))
-            || extra.iter().any(|n| lower.starts_with(n.as_str())));
+        && (local_build
+            || DEVELOPMENT.iter().any(|n| program_matches(&lower, n))
+            || extra.iter().any(|n| program_matches(&lower, n)));
     let protected = !development || uid != own_uid || is_self;
     Classification {
         kind: if development {
@@ -296,6 +373,7 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
             own_uid,
             listener.pid == own_pid,
             &settings.dev_binaries,
+            locally_built(&meta.command, &cwd),
         );
         let daemon = daemon(&meta.command);
         let name = if let Some(tool) = daemon {
@@ -410,9 +488,51 @@ mod tests {
             "Rancher Desktop",
         ] {
             assert!(container_engine(engine), "{engine}");
-            assert!(!classify(engine, "/x", 501, 501, false, &[]).stoppable);
+            assert!(!classify(engine, "/x", 501, 501, false, &[], false).stoppable);
         }
         assert!(!container_engine("node"));
+    }
+    #[test]
+    fn development_program_names() {
+        for name in [
+            "node",
+            "python3.12",
+            "redis-server",
+            "mysqld",
+            "beam.smp",
+            "php-fpm",
+        ] {
+            assert!(
+                DEVELOPMENT.iter().any(|n| program_matches(name, n)),
+                "{name}"
+            );
+        }
+        // Prefixes of unrelated applications are not enough.
+        for name in ["airtable", "nodebox", "javascriptcore", "rubymine"] {
+            assert!(
+                !DEVELOPMENT.iter().any(|n| program_matches(name, n)),
+                "{name}"
+            );
+        }
+    }
+    #[test]
+    fn binaries_built_in_a_repository() {
+        let crate_dir = env!("CARGO_MANIFEST_DIR");
+        // This test binary itself lives in target/ of the Portlight repository.
+        let exe = std::env::current_exe().unwrap();
+        let exe = exe.to_string_lossy();
+        assert!(locally_built(&format!("{exe} --serve"), "/"));
+        let relative = exe.strip_prefix(&format!("{crate_dir}/")).unwrap();
+        assert!(locally_built(relative, crate_dir));
+        let name = exe.rsplit('/').next().unwrap();
+        assert!(classify(name, &exe, 501, 501, false, &[], true).stoppable);
+        assert!(locally_built(
+            "/var/folders/x/T/go-build1234/b001/exe/main -port 8080",
+            "/"
+        ));
+        assert!(!locally_built("/opt/homebrew/bin/surreal start", "/"));
+        assert!(!locally_built("surreal start", crate_dir));
+        assert!(!locally_built(&format!("{crate_dir}/missing-binary"), "/"));
     }
     #[test]
     fn build_daemons_are_protected_tools() {
@@ -421,15 +541,15 @@ mod tests {
             -cp /Users/a/.gradle/wrapper/dists/gradle-9.3.1/lib/gradle-daemon-main-9.3.1.jar \
             org.gradle.launcher.daemon.bootstrap.GradleDaemon 9.3.1";
         assert_eq!(daemon(gradle), Some("Gradle"));
-        let class = classify("java", gradle, 501, 501, false, &[]);
+        let class = classify("java", gradle, 501, 501, false, &[], false);
         assert_eq!((class.kind, class.stoppable), ("tool", false));
         assert!(class.reason.unwrap().contains("./gradlew --stop"));
         let kotlin = "java -cp /x/kotlin-daemon.jar org.jetbrains.kotlin.daemon.KotlinCompileDaemon --daemon-runFilesPath /x";
-        assert!(!classify("java", kotlin, 501, 501, false, &[]).stoppable);
+        assert!(!classify("java", kotlin, 501, 501, false, &[], false).stoppable);
         // A Spring app started by Gradle keeps its gradle jars on the classpath.
         let app = "java -cp /Users/a/.gradle/caches/gradle-daemon-main.jar com.example.Application";
         assert_eq!(daemon(app), None);
-        assert!(classify("java", app, 501, 501, false, &[]).stoppable);
+        assert!(classify("java", app, 501, 501, false, &[], false).stoppable);
     }
     #[test]
     fn hidden_home_folders_name_their_tool() {
@@ -466,7 +586,7 @@ tcp4       0      0  127.0.0.1.50000        127.0.0.1.3000         ESTABLISHED  
     }
     #[test]
     fn classification_protects_engine_and_system() {
-        let dev = classify("node", "node server.js", 501, 501, false, &[]);
+        let dev = classify("node", "node server.js", 501, 501, false, &[], false);
         assert!(dev.stoppable);
         assert_eq!(dev.kind, "process");
         let docker = classify(
@@ -476,14 +596,23 @@ tcp4       0      0  127.0.0.1.50000        127.0.0.1.3000         ESTABLISHED  
             501,
             false,
             &["com".into()],
+            false,
         );
         assert!(!docker.stoppable);
         assert!(docker.reason.unwrap().contains("moteur de conteneurs"));
-        let other_user = classify("postgres", "postgres -D /x", 0, 501, false, &[]);
+        let other_user = classify("postgres", "postgres -D /x", 0, 501, false, &[], false);
         assert_eq!((other_user.kind, other_user.stoppable), ("process", false));
-        let native = classify("python3", "/usr/libexec/python3 x", 501, 501, false, &[]);
+        let native = classify(
+            "python3",
+            "/usr/libexec/python3 x",
+            501,
+            501,
+            false,
+            &[],
+            false,
+        );
         assert_eq!((native.kind, native.stoppable), ("system", false));
-        let itself = classify("node", "node", 501, 501, true, &[]);
+        let itself = classify("node", "node", 501, 501, true, &[], false);
         assert!(!itself.stoppable);
         let tool = classify(
             "idea",
@@ -492,15 +621,17 @@ tcp4       0      0  127.0.0.1.50000        127.0.0.1.3000         ESTABLISHED  
             501,
             false,
             &[],
+            false,
         );
         assert_eq!((tool.kind, tool.stoppable), ("tool", false));
         let extra = classify(
-            "mysqld",
-            "/opt/homebrew/bin/mysqld",
+            "surreal",
+            "/opt/homebrew/bin/surreal start",
             501,
             501,
             false,
-            &["mysqld".into()],
+            &["surreal".into()],
+            false,
         );
         assert!(extra.stoppable);
     }

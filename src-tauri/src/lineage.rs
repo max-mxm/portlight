@@ -233,6 +233,7 @@ mod tests {
             uid: 501,
             cpu: 0.0,
             rss_kb: 0,
+            zombie: false,
             identity: format!("start-{pid}"),
             elapsed: 60,
             command: command.into(),

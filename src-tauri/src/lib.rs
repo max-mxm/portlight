@@ -113,6 +113,13 @@ async fn stop_service(
         return Err("Essayez d’abord un arrêt normal.".into());
     }
     let service = find(&state, &id)?;
+    let inventory = state
+        .snapshot
+        .lock()
+        .map_err(|_| "Inventaire indisponible")?
+        .as_ref()
+        .map(|s| s.services.clone())
+        .unwrap_or_default();
     if state
         .stopping
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -120,10 +127,12 @@ async fn stop_service(
     {
         return Err("Un arrêt est déjà en cours. Patientez un instant.".into());
     }
-    let result = tauri::async_runtime::spawn_blocking(move || actions::stop(service, force, scope))
-        .await
-        .map_err(|e| e.to_string())
-        .and_then(|result| result);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        actions::stop(service, &inventory, force, scope)
+    })
+    .await
+    .map_err(|e| e.to_string())
+    .and_then(|result| result);
     state.stopping.store(false, Ordering::SeqCst);
     if let Ok(result) = &result {
         let mut resistant = state.resistant.lock().map_err(|_| "État indisponible")?;

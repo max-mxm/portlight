@@ -52,9 +52,10 @@ struct Details {
     directory: String,
     project: String,
     image: String,
+    running: bool,
 }
 
-const INSPECT_FORMAT: &str = "{\"id\":{{json .Id}},\"started\":{{json .State.StartedAt}},\"directory\":{{json (index .Config.Labels \"com.docker.compose.project.working_dir\")}},\"project\":{{json (index .Config.Labels \"com.docker.compose.project\")}},\"image\":{{json .Config.Image}}}";
+const INSPECT_FORMAT: &str = "{\"id\":{{json .Id}},\"started\":{{json .State.StartedAt}},\"directory\":{{json (index .Config.Labels \"com.docker.compose.project.working_dir\")}},\"project\":{{json (index .Config.Labels \"com.docker.compose.project\")}},\"image\":{{json .Config.Image}},\"running\":{{json .State.Running}}}";
 
 /// Metadata of several containers in one `docker inspect` call. A container
 /// removed since `docker ps` is missing from the result.
@@ -66,10 +67,19 @@ fn inspect(bin: &str, ids: &[&str]) -> Result<HashMap<String, Details>, String> 
     args.extend(ids);
     let run = run(bin, &args, Duration::from_secs(6))?;
     let details = parse_inspect(&run.stdout)?;
-    if details.is_empty() && !run.status.success() {
+    // "No such object": removed containers are simply absent.
+    if details.is_empty() && !run.status.success() && !run.stderr.contains("No such") {
         return Err(format!("docker inspect : {}", run.stderr));
     }
     Ok(details)
+}
+
+/// Whether the inventoried container (same ID and start time) still runs.
+pub fn running(id: &str, started: &str) -> Result<bool, String> {
+    let bin = binary().ok_or("Docker indisponible")?;
+    Ok(inspect(&bin, &[id])?
+        .get(id)
+        .is_some_and(|d| d.running && d.started == started))
 }
 
 fn parse_inspect(text: &str) -> Result<HashMap<String, Details>, String> {
@@ -253,15 +263,16 @@ mod tests {
     #[test]
     fn batched_inspect() {
         let details = parse_inspect(concat!(
-            r#"{"id":"abc","started":"2026-09-27T08:00:00Z","directory":"/Users/a/GitHub/app","project":"app","image":"postgres:16-alpine"}"#,
+            r#"{"id":"abc","started":"2026-09-27T08:00:00Z","directory":"/Users/a/GitHub/app","project":"app","image":"postgres:16-alpine","running":true}"#,
             "\n",
-            r#"{"id":"def","started":"2026-09-27T08:00:01Z","directory":"","project":"","image":"axllent/mailpit"}"#,
+            r#"{"id":"def","started":"2026-09-27T08:00:01Z","directory":"","project":"","image":"axllent/mailpit","running":false}"#,
             "\n\n",
         ))
         .unwrap();
         assert_eq!(details.len(), 2);
         assert_eq!(details["abc"].image, "postgres:16-alpine");
         assert!(details["def"].project.is_empty());
+        assert!(details["abc"].running && !details["def"].running);
         assert!(parse_inspect("not json").is_err());
     }
     #[test]
