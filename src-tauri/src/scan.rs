@@ -112,6 +112,26 @@ const DEVELOPMENT: &[&str] = &[
     "uvicorn", "cargo",
 ];
 
+/// Build daemons listen on a port but are not development servers:
+/// (main class, tool). The class must be a whole argument, not a classpath.
+const DAEMONS: &[(&str, &str)] = &[
+    (
+        "org.gradle.launcher.daemon.bootstrap.GradleDaemon",
+        "Gradle",
+    ),
+    ("org.jetbrains.kotlin.daemon.KotlinCompileDaemon", "Kotlin"),
+    ("scala.meta.metals.Main", "Metals"),
+];
+
+pub fn daemon(command: &str) -> Option<&'static str> {
+    command.split_whitespace().find_map(|token| {
+        DAEMONS
+            .iter()
+            .find(|(class, _)| token == *class)
+            .map(|(_, tool)| *tool)
+    })
+}
+
 pub struct Classification {
     pub kind: &'static str,
     pub stoppable: bool,
@@ -133,8 +153,10 @@ pub fn classify(
         || command.starts_with("/usr/libexec/")
         || command.starts_with("/usr/sbin/");
     let lower = name.to_ascii_lowercase();
+    let daemon = daemon(command);
     let development = !is_docker
         && !native_path
+        && daemon.is_none()
         && (DEVELOPMENT.iter().any(|n| lower.starts_with(n))
             || extra.iter().any(|n| lower.starts_with(n.as_str())));
     let protected = !development || uid != own_uid || is_self;
@@ -147,17 +169,38 @@ pub fn classify(
             "tool"
         },
         stoppable: !protected,
-        reason: protected.then_some(if is_docker {
-            "Le moteur Docker est protégé. Arrêtez le conteneur concerné."
-        } else {
-            "Outil ou service système protégé : fermez-le depuis son application."
+        reason: protected.then_some(match daemon {
+            _ if is_docker => "Le moteur Docker est protégé. Arrêtez le conteneur concerné.",
+            Some("Gradle") => {
+                "Démon Gradle protégé : lancez ./gradlew --stop depuis le projet pour l’arrêter."
+            }
+            Some(_) => "Démon d’outil de build protégé : arrêtez-le depuis son outil.",
+            None => "Outil ou service système protégé : fermez-le depuis son application.",
         }),
     }
+}
+
+/// `~/.gradle/daemon/9.3.1` belongs to "gradle", not to a "9.3.1" project.
+fn hidden_tool(cwd: &str, home: &str) -> Option<String> {
+    let relative = cwd
+        .strip_prefix(home.trim_end_matches('/'))?
+        .strip_prefix('/')?;
+    let first = relative.split('/').next()?;
+    first
+        .strip_prefix('.')
+        .filter(|tool| !tool.is_empty())
+        .map(str::to_owned)
 }
 
 fn project(cwd: &str, name: &str, roots: &[String]) -> String {
     if let Some(project) = project::name(cwd, roots) {
         return project;
+    }
+    if let Some(tool) = std::env::var("HOME")
+        .ok()
+        .and_then(|home| hidden_tool(cwd, &home))
+    {
+        return tool;
     }
     if cwd.is_empty()
         || cwd == "/"
@@ -220,7 +263,10 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
             listener.pid == own_pid,
             &settings.dev_binaries,
         );
-        let name = if meta.command.starts_with("next-server") {
+        let daemon = daemon(&meta.command);
+        let name = if let Some(tool) = daemon {
+            format!("Démon {tool}")
+        } else if meta.command.starts_with("next-server") {
             "Next.js".into()
         } else if meta.command.contains("vite") {
             "Vite".into()
@@ -234,7 +280,10 @@ pub fn snapshot_with(settings: &Settings) -> Result<Snapshot, String> {
         services.push(Service {
             id: format!("process:{}:{}", listener.pid, meta.identity),
             pid: listener.pid,
-            project: project(&cwd, &name, &settings.project_roots),
+            project: match daemon {
+                Some(tool) => tool.to_owned(),
+                None => project(&cwd, &name, &settings.project_roots),
+            },
             name,
             kind: class.kind.into(),
             ports,
@@ -302,6 +351,33 @@ mod tests {
         );
         assert_eq!(project("/", "rapportd", &[]), "rapportd");
         assert_eq!(project("/Users/a/sites/blog", "ruby", &[]), "blog");
+    }
+    #[test]
+    fn build_daemons_are_protected_tools() {
+        let gradle = "/Library/Java/JavaVirtualMachines/corretto-21.jdk/Contents/Home/bin/java \
+            --add-opens=java.base/java.lang=ALL-UNNAMED -Xmx512m \
+            -cp /Users/a/.gradle/wrapper/dists/gradle-9.3.1/lib/gradle-daemon-main-9.3.1.jar \
+            org.gradle.launcher.daemon.bootstrap.GradleDaemon 9.3.1";
+        assert_eq!(daemon(gradle), Some("Gradle"));
+        let class = classify("java", gradle, 501, 501, false, &[]);
+        assert_eq!((class.kind, class.stoppable), ("tool", false));
+        assert!(class.reason.unwrap().contains("./gradlew --stop"));
+        let kotlin = "java -cp /x/kotlin-daemon.jar org.jetbrains.kotlin.daemon.KotlinCompileDaemon --daemon-runFilesPath /x";
+        assert!(!classify("java", kotlin, 501, 501, false, &[]).stoppable);
+        // A Spring app started by Gradle keeps its gradle jars on the classpath.
+        let app = "java -cp /Users/a/.gradle/caches/gradle-daemon-main.jar com.example.Application";
+        assert_eq!(daemon(app), None);
+        assert!(classify("java", app, 501, 501, false, &[]).stoppable);
+    }
+    #[test]
+    fn hidden_home_folders_name_their_tool() {
+        assert_eq!(
+            hidden_tool("/Users/a/.gradle/daemon/9.3.1", "/Users/a").as_deref(),
+            Some("gradle")
+        );
+        assert_eq!(hidden_tool("/Users/a/sites/blog", "/Users/a"), None);
+        assert_eq!(hidden_tool("/Users/ab/.x", "/Users/a"), None);
+        assert_eq!(hidden_tool("/Users/a", "/Users/a"), None);
     }
     #[test]
     fn netstat_adds_launchd_sockets() {
