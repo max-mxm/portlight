@@ -3,7 +3,7 @@
 [![CI](https://github.com/max-mxm/portlight/actions/workflows/ci.yml/badge.svg)](https://github.com/max-mxm/portlight/actions/workflows/ci.yml)
 ![macOS 12+](https://img.shields.io/badge/macOS-12%2B-181B34)
 ![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-6161FF)
-[![Licence MIT](https://img.shields.io/badge/licence-MIT-00CA72)](LICENSE)
+[![MIT License](https://img.shields.io/badge/license-MIT-00CA72)](LICENSE)
 
 ![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8D8?style=flat-square&logo=tauri&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-CE422B?style=flat-square&logo=rust&logoColor=white)
@@ -12,21 +12,21 @@
 ![Vite 7](https://img.shields.io/badge/Vite-7-646CFF?style=flat-square&logo=vite&logoColor=white)
 ![Vitest](https://img.shields.io/badge/Vitest-6E9F18?style=flat-square&logo=vitest&logoColor=white)
 
-Une application Mac pour retrouver les serveurs oubliés, identifier les ports utilisés et arrêter le bon processus ou conteneur.
+A macOS app to find forgotten servers, identify occupied ports, and stop the right process or container.
 
-**Tauri 2 · Rust · React · TypeScript · Vite**. Aucun serveur HTTP en production, aucun compte et aucun service cloud. Interface française, thèmes clair/sombre et typographie Space Grotesk / JetBrains Mono embarquée, interface brutaliste carrée et palette inspirée de Monday.
+**Tauri 2 · Rust · React · TypeScript · Vite**. No HTTP server in production, no account, and no cloud service. A French-language interface with light and dark themes, bundled Space Grotesk and JetBrains Mono fonts, a square brutalist layout, and a palette inspired by Monday.
 
-## Aperçu
+## Preview
 
-![Portlight — vue d’ensemble des ports et services locaux](docs/images/portlight-overview.jpg)
+![Portlight — overview of local ports and services](docs/images/portlight-overview.jpg)
 
-Capture réelle de l’application macOS. Les compteurs reflètent la machine au moment de la capture. Une vue rassemble les ports, les serveurs, les conteneurs et les processus anciens à vérifier ; la recherche et les actions sont accessibles au clavier.
+An actual screenshot of the macOS app. The counters reflect the machine at the time of capture. One view brings together ports, servers, containers, and long-running processes to review; search and actions are accessible from the keyboard.
 
-## Démarrer
+## Getting started
 
-Prérequis : **macOS 12+**, **Node.js 22+**, **Rust stable** et les **outils en ligne de commande Xcode** (`xcode-select --install`). Docker est facultatif : le moteur doit être démarré pour afficher ses conteneurs. Cette version a été validée localement sur Apple Silicon ; les autres architectures restent à vérifier.
+Requirements: **macOS 12+**, **Node.js 22+**, **stable Rust**, and **Xcode Command Line Tools** (`xcode-select --install`). Docker is optional: its engine must be running to display containers. This version has been validated locally on Apple Silicon; other architectures still need verification.
 
-Le dépôt est actuellement privé : le clonage nécessite un compte GitHub autorisé et une clé SSH configurée.
+The repository is currently private. Cloning requires an authorized GitHub account and a configured SSH key.
 
 ```sh
 git clone git@github.com:max-mxm/portlight.git
@@ -35,62 +35,62 @@ npm ci
 npm run app:dev
 ```
 
-`npm run dev` lance uniquement l’interface web : elle ne peut pas inspecter ou arrêter les processus. Le port de développement Vite est `1420`, limité à localhost. Il n’est pas ouvert par l’application compilée.
+`npm run dev` starts only the web interface, which cannot inspect or stop processes on its own. The Vite development server uses port `1420` on localhost. The compiled app does not open this port.
 
-## Construire l’application
+## Building the app
 
 ```sh
 npm run app:build
 open src-tauri/target/release/bundle/macos/Portlight.app
 ```
 
-Cette compilation locale n’est pas signée avec un certificat Developer ID ni notarisée. La distribution publique nécessitera une signature et une notarisation Apple.
+This local build is not signed with a Developer ID certificate or notarized. Public distribution will require Apple code signing and notarization.
 
-Pour obtenir un relevé JSON sans ouvrir la fenêtre :
+To get a JSON snapshot without opening the window:
 
 ```sh
 src-tauri/target/release/portlight --scan-json
 ```
 
-## Utilisation
+## Usage
 
-- Recherche par port, nom, PID, commande ou projet. Filtre par projet dans la barre latérale.
-- Serveurs regroupés par dépôt GitHub, y compris ceux démarrés dans un worktree.
-- Vue « À vérifier » : processus de développement actifs depuis au moins 8 heures. Ce seuil ne prouve pas qu’un serveur est inutilisé.
-- Arrêt normal (`SIGTERM`), vérification des ports et arrêt forcé proposé après résistance constatée.
-- Docker : arrêt du conteneur concerné avec `docker stop --time 5`, jamais du moteur Docker.
-- Ouvrir un port dans le navigateur (HTTP) et copier sa commande d’arrêt dans les détails.
-- Historique des 50 dernières actions, stocké localement. Pause de l’actualisation et thèmes clair/sombre.
-- `⌘K` : actions rapides. `⌘F` : recherche. `⌘R` : actualisation.
+- Search by port, name, PID, command, or project. Filter by project in the sidebar.
+- Group servers by GitHub repository, including those started in a worktree.
+- Review development processes that have been running for at least 8 hours in the “To review” view (shown as “À vérifier” in the French UI). This threshold does not prove that a server is unused.
+- Request a normal stop (`SIGTERM`), check whether ports are released, and use a force stop if the process resists the normal stop.
+- Stop the relevant Docker container with `docker stop --time 5`, without stopping the Docker engine.
+- Open a port in the browser using HTTP, or copy its stop command from the details dialog.
+- Keep the last 50 actions in local history, pause automatic refresh, and switch between light and dark themes.
+- `⌘K`: quick actions. `⌘F`: search. `⌘R`: refresh.
 
-## Fonctionnement
+## How it works
 
-1. Rust collecte les ports TCP en écoute avec `lsof` et `netstat`, puis enrichit les processus avec `ps`. Si Docker est disponible, ses ports publiés sont associés aux conteneurs.
-2. L’interface reçoit un inventaire via les commandes IPC de Tauri. Elle regroupe les services par projet et permet de chercher un port ou un processus.
-3. Un arrêt demande confirmation. Le backend relit l’inventaire et revalide la cible avant de lui envoyer `SIGTERM`, ou de stopper le conteneur Docker concerné.
-4. Portlight vérifie si les ports sont libérés. Pour un processus qui résiste à l’arrêt normal, une action forcée devient disponible.
+1. Rust collects listening TCP ports with `lsof` and `netstat`, then enriches process metadata with `ps`. When Docker is available, published ports are associated with their containers.
+2. The interface receives an inventory through Tauri IPC commands. It groups services by project and lets you search for a port or process.
+3. Stopping a service requires confirmation. The backend scans again and revalidates the target before sending `SIGTERM` or stopping the relevant Docker container.
+4. Portlight checks whether the ports have been released. If a process resists the normal stop, a force-stop action becomes available.
 
-Les signaux sont exécutés par Rust ; aucune commande fournie par l’interface n’est interprétée par un shell. Le thème et l’historique restent dans le stockage local de l’application. Il n’y a pas de télémétrie, de compte ou de backend distant. Le frontend compilé et les polices sont embarqués dans l’application.
+Rust sends the signals; commands supplied by the interface are never interpreted by a shell. The theme and history stay in the app’s local storage. There is no telemetry, account, or remote backend. The compiled frontend and fonts are bundled with the app.
 
 ## Architecture
 
-- `src-tauri/src/scan.rs` : inventaire TCP via lsof + netstat, classification et projets.
-- `src-tauri/src/docker.rs` : conteneurs, ports publiés, métadonnées Compose et durée.
-- `src-tauri/src/actions.rs` : validation fraîche de la cible, signaux et vérification après arrêt.
-- `src-tauri/src/process.rs` : exécution sans shell, délais et métadonnées de processus.
-- `src-tauri/src/lib.rs` : commandes IPC typées, travail système exécuté hors du thread UI.
-- `src/` : interface, recherche, groupes, raccourcis, dialogues et historique.
-- `docs/design-decisions.md` : adaptation du système UI UX Pro Max au contexte Mac.
+- `src-tauri/src/scan.rs`: TCP inventory through lsof and netstat, classification, and project detection.
+- `src-tauri/src/docker.rs`: containers, published ports, Compose metadata, and uptime.
+- `src-tauri/src/actions.rs`: target revalidation, signals, and checks after stopping.
+- `src-tauri/src/process.rs`: command execution without a shell, timeouts, and process metadata.
+- `src-tauri/src/lib.rs`: typed IPC commands; system work runs outside the UI thread.
+- `src/`: interface, search, groups, shortcuts, dialogs, and history.
+- `docs/design-decisions.md`: adaptation of the UI UX Pro Max design system to the macOS app.
 
-## Limites explicites
+## Current limitations
 
-Cette première version recense les **ports TCP en écoute**, pas tous les sockets UDP ni les connexions sortantes. Sans privilèges administrateur, certaines métadonnées système peuvent être absentes. Les services macOS, les IDE, les émulateurs et les processus d’autres utilisateurs sont protégés ; l’arrêt depuis l’interface est réservé aux processus de développement reconnus appartenant à l’utilisateur et aux conteneurs.
+This first version lists **listening TCP ports**, not all UDP sockets or outgoing connections. Some system metadata may be unavailable without administrator privileges. macOS services, IDEs, emulators, and other users’ processes are protected. Stopping services from the interface is limited to recognized development processes owned by the current user and Docker containers.
 
-La vérification de l’identité d’un processus utilise son PID et sa date de démarrage fournie par `ps` (précision à la seconde), avec une nouvelle vérification avant le signal ; elle réduit le risque de réutilisation du PID sans fournir la garantie atomique d’un handle de processus. Un superviseur peut relancer un processus : si le port reste occupé après l’arrêt, Portlight le signale.
+Process identity checks use the PID and start time reported by `ps` (with one-second precision), with another check before sending a signal. This reduces the risk of PID reuse but does not provide the atomic guarantee of a process handle. A supervisor may restart a process; Portlight reports when a port remains occupied after a stop.
 
-Pas de service en arrière-plan ni de lancement automatique à la connexion dans cette version. L’actualisation est effectuée toutes les 10 secondes pendant que la fenêtre est visible. L’historique provient seulement des actions effectuées dans Portlight, pas d’une surveillance permanente du système.
+This version has no background service or automatic launch at login. The inventory refreshes every 10 seconds while the window is visible. History records only actions performed in Portlight, rather than continuously monitoring the system.
 
-## Vérifications
+## Checks
 
 ```sh
 npm run build
@@ -101,14 +101,14 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
-Le test d’intégration Rust démarre uniquement son propre serveur Node sur un port éphémère : il vérifie l’identité périmée, la résistance à SIGTERM, SIGKILL et la libération du port. Il n’arrête aucun service préexistant.
+The Rust integration test starts its own Node server on an ephemeral port. It checks stale process identity, resistance to SIGTERM, forced termination with SIGKILL, and port release. It does not stop any pre-existing service.
 
-## Contribuer
+## Contributing
 
-Les conventions et les étapes de validation sont décrites dans [CONTRIBUTING.md](CONTRIBUTING.md). Les choix visuels sont documentés dans [docs/design-decisions.md](docs/design-decisions.md). La CI exécute les vérifications frontend et Rust sur macOS à chaque push et pull request.
+Conventions and validation steps are described in [CONTRIBUTING.md](CONTRIBUTING.md). Visual decisions are documented in [docs/design-decisions.md](docs/design-decisions.md). CI runs frontend and Rust checks on macOS for pushes to `main` and pull requests. These supporting documents are currently written in French.
 
-## Licence
+## License
 
-Le code de Portlight est distribué sous [licence MIT](LICENSE), © 2026 Maxime MxM. Le statut privé du dépôt ne modifie pas la licence du code. Les dépendances conservent leurs licences respectives ; les licences des polices embarquées figurent dans [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Portlight’s code is distributed under the [MIT License](LICENSE), © 2026 Maxime MxM. The repository’s private visibility does not change the code’s license. Dependencies retain their respective licenses; bundled font licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-La palette est inspirée de Monday ; Portlight est un projet indépendant, sans affiliation avec Monday.
+The palette is inspired by Monday. Portlight is an independent project with no affiliation with Monday.
