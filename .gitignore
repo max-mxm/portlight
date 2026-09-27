@@ -6,3 +6,8 @@ src-tauri/target/
 work/
 
 src-tauri/gen/
+
+.env
+.env.*
+!.env.example
+*.log

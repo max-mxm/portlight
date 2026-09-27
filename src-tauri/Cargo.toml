@@ -2,6 +2,8 @@
 name = "portlight"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Application macOS locale pour identifier et arrêter les serveurs et ports oubliés."
 [lib]
 name = "portlight_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

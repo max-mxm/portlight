@@ -1,14 +1,29 @@
 # Portlight
 
+[![CI](https://github.com/max-mxm/portlight/actions/workflows/ci.yml/badge.svg)](https://github.com/max-mxm/portlight/actions/workflows/ci.yml)
+![macOS 12+](https://img.shields.io/badge/macOS-12%2B-181B34)
+![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-6161FF)
+[![Licence MIT](https://img.shields.io/badge/licence-MIT-00CA72)](LICENSE)
+
 Une application Mac pour retrouver les serveurs oubliés, identifier les ports utilisés et arrêter le bon processus ou conteneur.
 
 **Tauri 2 · Rust · React · TypeScript · Vite**. Aucun serveur HTTP en production, aucun compte et aucun service cloud. Interface française, thèmes clair/sombre et typographie Space Grotesk / JetBrains Mono embarquée, interface brutaliste carrée et palette inspirée de Monday.
 
+## Aperçu
+
+![Portlight — vue d’ensemble des ports et services locaux](docs/images/portlight-overview.jpg)
+
+Capture réelle de l’application macOS. Les compteurs reflètent la machine au moment de la capture. Une vue rassemble les ports, les serveurs, les conteneurs et les processus anciens à vérifier ; la recherche et les actions sont accessibles au clavier.
+
 ## Démarrer
 
-Prérequis : macOS 12+, Node.js 22+, Rust et les outils Xcode. Docker est facultatif.
+Prérequis : **macOS 12+**, **Node.js 22+**, **Rust stable** et les **outils en ligne de commande Xcode** (`xcode-select --install`). Docker est facultatif : le moteur doit être démarré pour afficher ses conteneurs. Cette version a été validée localement sur Apple Silicon ; les autres architectures restent à vérifier.
+
+Le dépôt est actuellement privé : le clonage nécessite un compte GitHub autorisé et une clé SSH configurée.
 
 ```sh
+git clone git@github.com:max-mxm/portlight.git
+cd portlight
 npm ci
 npm run app:dev
 ```
@@ -41,6 +56,15 @@ src-tauri/target/release/portlight --scan-json
 - Historique des 50 dernières actions, stocké localement. Pause de l’actualisation et thèmes clair/sombre.
 - `⌘K` : actions rapides. `⌘F` : recherche. `⌘R` : actualisation.
 
+## Fonctionnement
+
+1. Rust collecte les ports TCP en écoute avec `lsof` et `netstat`, puis enrichit les processus avec `ps`. Si Docker est disponible, ses ports publiés sont associés aux conteneurs.
+2. L’interface reçoit un inventaire via les commandes IPC de Tauri. Elle regroupe les services par projet et permet de chercher un port ou un processus.
+3. Un arrêt demande confirmation. Le backend relit l’inventaire et revalide la cible avant de lui envoyer `SIGTERM`, ou de stopper le conteneur Docker concerné.
+4. Portlight vérifie si les ports sont libérés. Pour un processus qui résiste à l’arrêt normal, une action forcée devient disponible.
+
+Les signaux sont exécutés par Rust ; aucune commande fournie par l’interface n’est interprétée par un shell. Le thème et l’historique restent dans le stockage local de l’application. Il n’y a pas de télémétrie, de compte ou de backend distant. Le frontend compilé et les polices sont embarqués dans l’application.
+
 ## Architecture
 
 - `src-tauri/src/scan.rs` : inventaire TCP via lsof + netstat, classification et projets.
@@ -64,8 +88,20 @@ Pas de service en arrière-plan ni de lancement automatique à la connexion dans
 ```sh
 npm run build
 npm test
+npm run format:check
+cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 ```
 
 Le test d’intégration Rust démarre uniquement son propre serveur Node sur un port éphémère : il vérifie l’identité périmée, la résistance à SIGTERM, SIGKILL et la libération du port. Il n’arrête aucun service préexistant.
+
+## Contribuer
+
+Les conventions et les étapes de validation sont décrites dans [CONTRIBUTING.md](CONTRIBUTING.md). Les choix visuels sont documentés dans [docs/design-decisions.md](docs/design-decisions.md). La CI exécute les vérifications frontend et Rust sur macOS à chaque push et pull request.
+
+## Licence
+
+Le code de Portlight est distribué sous [licence MIT](LICENSE), © 2026 Maxime MxM. Le statut privé du dépôt ne modifie pas la licence du code. Les dépendances conservent leurs licences respectives ; les licences des polices embarquées figurent dans [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+La palette est inspirée de Monday ; Portlight est un projet indépendant, sans affiliation avec Monday.
