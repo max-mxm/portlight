@@ -26,10 +26,8 @@ The Portlight interface in English and light theme, rendered from a real invento
 
 Requirements: **macOS 12+**, **Node.js 22+**, **stable Rust**, and **Xcode Command Line Tools** (`xcode-select --install`). Docker is optional: its engine must be running to display containers. Portlight finds the Docker CLI of Docker Desktop (including a user install in `~/.docker/bin`), Homebrew or Colima, OrbStack and Rancher Desktop, and never lists their engine processes as stoppable. This version has been validated locally on Apple Silicon; other architectures still need verification.
 
-The repository is currently private. Cloning requires an authorized GitHub account and a configured SSH key.
-
 ```sh
-git clone git@github.com:max-mxm/portlight.git
+git clone https://github.com/max-mxm/portlight.git
 cd portlight
 npm ci
 npm run app:dev
@@ -123,6 +121,6 @@ Conventions and validation steps are described in [CONTRIBUTING.md](CONTRIBUTING
 
 ## License
 
-Portlight’s code is distributed under the [MIT License](LICENSE), © 2026 Maxime MxM. The repository’s private visibility does not change the code’s license. Dependencies retain their respective licenses; bundled font licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Portlight’s code is distributed under the [MIT License](LICENSE), © 2026 Maxime MxM. Dependencies retain their respective licenses; bundled font licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 The palette is inspired by Monday. Portlight is an independent project with no affiliation with Monday.
