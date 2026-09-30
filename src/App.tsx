@@ -146,14 +146,30 @@ export default function App() {
   }
 
   async function stop(request: StopRequest) {
-    const { service: s, force, scope } = request;
+    const { service: s, force, scope, group } = request;
+    const key = resistantKey(scope, group?.name ?? s.id);
     setConfirm(null);
-    setBusy(s.id);
+    setBusy(group ? key : s.id);
     try {
-      const result = await api.stop(s.id, force, scope);
+      const result = group
+        ? await api.stopServices(
+            group.members.map((m) => m.id),
+            force,
+          )
+        : await api.stop(s.id, force, scope);
       setToast(result.message);
-      const affected =
-        scope === "group"
+      const composeProjects = new Set(
+        (group?.members ?? [s]).map((m) => m.composeProject),
+      );
+      const affected = group
+        ? services
+            .filter(
+              (x) =>
+                group.members.some((m) => m.id === x.id) ||
+                (x.composeProject && composeProjects.has(x.composeProject)),
+            )
+            .flatMap((x) => x.ports)
+        : scope === "group"
           ? s.launchGroup.flatMap((p) => p.ports)
           : scope === "compose"
             ? services
@@ -161,8 +177,9 @@ export default function App() {
                 .flatMap((x) => x.ports)
             : s.ports;
       record({
-        name:
-          scope === "group"
+        name: group
+          ? t.page.historyProject(group.name)
+          : scope === "group"
             ? t.page.historyGroup(s.name)
             : scope === "compose"
               ? t.page.historyCompose(s.composeProject ?? "")
@@ -171,7 +188,6 @@ export default function App() {
         message: result.message,
         success: result.stopped,
       });
-      const key = resistantKey(scope, s.id);
       setResistant((ids) => {
         const next = new Set(ids);
         if (result.stopped) next.delete(key);
@@ -216,7 +232,7 @@ export default function App() {
           }}
         />
         <main>
-          <header className="topbar">
+          <header className="topbar" data-tauri-drag-region="deep">
             <div className="breadcrumb">
               <Laptop aria-hidden="true" size={16} />
               <span>{t.common.thisMac}</span>
@@ -326,6 +342,7 @@ export default function App() {
                     snapshot,
                     groups: groups.entries,
                     busy,
+                    resistant,
                     setDetails,
                     setConfirm,
                     open,

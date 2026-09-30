@@ -5,6 +5,7 @@ import { fixture } from "../test/fixture";
 import { CommandPalette } from "./CommandPalette";
 import { ServiceDetails } from "./ServiceDetails";
 import { ServiceRow } from "./ServiceRow";
+import { ServicesPanel } from "./ServicesPanel";
 import { StopConfirmation } from "./StopConfirmation";
 import { I18nProvider } from "../i18n";
 
@@ -39,6 +40,101 @@ describe("Confirmation d’arrêt", () => {
       force: false,
       scope: "group",
     });
+  });
+});
+
+describe("Groupe de projet", () => {
+  const web = fixture({ id: "web", project: "shop", launchGroup: group });
+  const db = fixture({
+    id: "db",
+    project: "shop",
+    kind: "docker",
+    name: "shop-db-1",
+    ports: [5432],
+    composeProject: "shop",
+    composeContainers: ["shop-cache-1", "shop-db-1"],
+  });
+  const renderPanel = (setConfirm = vi.fn(), resistant = new Set<string>()) =>
+    render(
+      <ServicesPanel
+        project=""
+        view="all"
+        visible={[web, db]}
+        query=""
+        setQuery={vi.fn()}
+        searchRef={{ current: null }}
+        sort="project"
+        setSort={vi.fn()}
+        loading={false}
+        snapshot={null}
+        groups={[
+          ["shop", [web, db]],
+          ["blog", []],
+        ]}
+        busy={null}
+        resistant={resistant}
+        setDetails={vi.fn()}
+        setConfirm={setConfirm}
+        open={vi.fn()}
+        reviewHours={8}
+      />,
+    );
+  it("replie et déplie un groupe, puis tous les groupes", () => {
+    localStorage.clear();
+    renderPanel();
+    const toggle = screen.getByRole("button", { name: /^shop\s*2 services$/ });
+    expect(screen.getByText("shop-db-1")).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("shop-db-1")).toBeNull();
+    // One group still open: the toolbar offers to fold them all.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse all groups" }),
+    );
+    expect(screen.queryByText("shop-db-1")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand all groups" }));
+    expect(screen.getByText("shop-db-1")).toBeTruthy();
+    localStorage.clear();
+  });
+  it("arrête le groupe, puis force seulement les processus", () => {
+    const setConfirm = vi.fn();
+    renderPanel(setConfirm);
+    fireEvent.click(screen.getAllByRole("button", { name: "Stop group" })[0]);
+    expect(setConfirm).toHaveBeenCalledWith({
+      service: web,
+      force: false,
+      scope: "project",
+      group: { name: "shop", members: [web, db] },
+    });
+    const forced = vi.fn();
+    renderPanel(forced, new Set(["project:shop"]));
+    fireEvent.click(screen.getByRole("button", { name: "Force stop" }));
+    expect(forced.mock.calls[0][0].group.members).toEqual([web]);
+  });
+  it("confirme avec la commande Docker groupée", () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const confirm = {
+      service: web,
+      force: false,
+      scope: "project" as const,
+      group: { name: "shop", members: [web, db] },
+    };
+    render(
+      <StopConfirmation confirm={confirm} setConfirm={vi.fn()} stop={stop} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Stop the shop group?" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("list", { name: "Stopped containers" }).textContent,
+    ).toContain("shop-cache-1");
+    expect(
+      screen.getByText("kill -TERM 40 42 docker stop shop-cache-1 shop-db-1", {
+        normalizer: (t) => t.replace(/\s+/g, " ").trim(),
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stop the group" }));
+    expect(stop).toHaveBeenCalledWith(confirm);
   });
 });
 

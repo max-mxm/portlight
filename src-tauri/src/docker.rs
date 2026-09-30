@@ -51,10 +51,17 @@ struct Row {
 struct Details {
     id: String,
     started: String,
+    #[serde(deserialize_with = "null_as_empty")]
     directory: String,
+    #[serde(deserialize_with = "null_as_empty")]
     project: String,
     image: String,
     running: bool,
+}
+
+/// `index` on a missing label yields `null` in Docker's JSON template output.
+fn null_as_empty<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
 }
 
 const INSPECT_FORMAT: &str = "{\"id\":{{json .Id}},\"started\":{{json .State.StartedAt}},\"directory\":{{json (index .Config.Labels \"com.docker.compose.project.working_dir\")}},\"project\":{{json (index .Config.Labels \"com.docker.compose.project\")}},\"image\":{{json .Config.Image}},\"running\":{{json .State.Running}}}";
@@ -84,11 +91,20 @@ pub fn running(id: &str, started: &str) -> Result<bool, String> {
         .is_some_and(|d| d.running && d.started == started))
 }
 
+/// Start time of each container among `ids` that still runs, in one call.
+pub fn running_since(ids: &[&str]) -> Result<HashMap<String, String>, String> {
+    let bin = binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
+    Ok(inspect(&bin, ids)?
+        .into_values()
+        .filter(|d| d.running)
+        .map(|d| (d.id, d.started))
+        .collect())
+}
+
 fn parse_inspect(text: &str) -> Result<HashMap<String, Details>, String> {
     text.lines()
         .filter(|line| !line.trim().is_empty())
         .map(|line| {
-            // Missing labels are encoded as empty strings by Docker's template engine.
             serde_json::from_str::<Details>(line)
                 .map(|d| (d.id.clone(), d))
                 .map_err(|e| {
@@ -286,6 +302,15 @@ mod tests {
         assert!(details["def"].project.is_empty());
         assert!(details["abc"].running && !details["def"].running);
         assert!(parse_inspect("not json").is_err());
+    }
+    #[test]
+    fn missing_labels_are_null() {
+        // Containers started without Compose (e.g. the Supabase CLI) lack the labels.
+        let details = parse_inspect(
+            r#"{"id":"abc","started":"2026-09-30T21:47:12Z","directory":null,"project":null,"image":"supabase/studio","running":true}"#,
+        )
+        .unwrap();
+        assert!(details["abc"].directory.is_empty() && details["abc"].project.is_empty());
     }
     #[test]
     fn host_ports_only() {

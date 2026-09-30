@@ -1,5 +1,5 @@
 import type { Messages } from "./i18n";
-import type { Service, StopScope, View } from "./types";
+import type { ProcessSummary, Service, StopScope, View } from "./types";
 export const DEFAULT_REVIEW_HOURS = 8;
 export function isOld(s: Service, reviewHours = DEFAULT_REVIEW_HOURS) {
   return s.kind === "process" && s.elapsedSeconds >= reviewHours * 3600;
@@ -92,6 +92,41 @@ export function cpu(percent: number | null, t: Messages) {
 }
 export function resistantKey(scope: StopScope, id: string) {
   return `${scope}:${id}`;
+}
+/** Processes signaled by a group stop: each launcher with its descendants. */
+export function groupProcesses(members: Service[]): ProcessSummary[] {
+  const seen = new Map<number, ProcessSummary>();
+  for (const s of members.filter((s) => s.kind !== "docker")) {
+    const group = s.launchGroup.length ? s.launchGroup : [s];
+    for (const p of group)
+      if (!seen.has(p.pid))
+        seen.set(p.pid, {
+          pid: p.pid,
+          name: p.name,
+          command: p.command,
+          ports: p.ports,
+        });
+  }
+  return [...seen.values()];
+}
+/** Containers stopped by a group stop: whole Compose projects, others alone. */
+export function groupContainers(members: Service[]) {
+  const names = new Set<string>();
+  for (const s of members.filter((s) => s.kind === "docker"))
+    for (const name of s.composeProject ? s.composeContainers : [s.name])
+      names.add(name);
+  return [...names].sort();
+}
+/** Group stop: one signal for the processes, one docker stop for the containers. */
+export function groupStopCommand(members: Service[], force: boolean) {
+  const pids = groupProcesses(members).map((p) => p.pid);
+  const containers = groupContainers(members);
+  return [
+    pids.length ? `kill ${force ? "-KILL" : "-TERM"} ${pids.join(" ")}` : "",
+    containers.length ? `docker stop ${containers.join(" ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 /** Equivalent command shown before a stop, never executed by a shell. */
 export function stopCommand(s: Service, scope: StopScope, force: boolean) {

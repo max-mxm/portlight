@@ -1,10 +1,20 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Settings, Snapshot, StopResult, StopScope } from "./types";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import type {
+  Settings,
+  Snapshot,
+  StopResult,
+  StopScope,
+  ThemePreference,
+} from "./types";
 export const native = isTauri();
 export const scan = () => invoke<Snapshot>("scan_services");
 export const stop = (id: string, force = false, scope: StopScope = "service") =>
   invoke<StopResult>("stop_service", { id, force, scope });
+/** Stops a project group: processes with their launcher, containers with their Compose project. */
+export const stopServices = (ids: string[], force = false) =>
+  invoke<StopResult>("stop_services", { ids, force });
 export const openPort = (id: string, port: number) =>
   invoke<void>("open_port", { id, port });
 export const openFolder = (id: string, editor: string | null = null) =>
@@ -22,3 +32,12 @@ export const onSnapshot = (handler: (snapshot: Snapshot) => void) =>
 /** "Stop…" chosen in the menu bar: the window asks for confirmation. */
 export const onConfirmStop = (handler: (id: string) => void) =>
   listen<string>("portlight://confirm-stop", (e) => handler(e.payload));
+/** Title bar and window background follow the theme chosen in Portlight. */
+export const applyWindowTheme = async (
+  preference: ThemePreference,
+  background: string,
+) => {
+  const window = getCurrentWindow();
+  await window.setTheme(preference === "system" ? null : preference);
+  await window.setBackgroundColor(background);
+};
