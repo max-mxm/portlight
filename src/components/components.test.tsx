@@ -1,13 +1,28 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
+import { activity } from "../test/activity";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { fixture } from "../test/fixture";
 import { CommandPalette } from "./CommandPalette";
 import { ServiceDetails } from "./ServiceDetails";
 import { ServiceRow } from "./ServiceRow";
 import { ServicesPanel } from "./ServicesPanel";
+import { ProcessesPanel } from "./ProcessesPanel";
 import { StopConfirmation } from "./StopConfirmation";
 import { I18nProvider } from "../i18n";
+import * as api from "../api";
+
+vi.mock("../hooks/useActivity", () => ({
+  useActivity: () => ({ snapshot: activity(), error: "", refresh: vi.fn() }),
+}));
+vi.mock("../api", async (original) => ({
+  ...(await original<typeof import("../api")>()),
+  stopActivity: vi.fn().mockResolvedValue({
+    stopped: true,
+    message: "Done.",
+    remainingPorts: [],
+  }),
+}));
 
 const group = [
   { pid: 40, name: "node pnpm", command: "node /x/pnpm dev", ports: [] },
@@ -304,5 +319,55 @@ describe("Langue", () => {
     expect(screen.getByRole("button", { name: /Arrêter/ })).toBeTruthy();
     expect(screen.getByText("0,4 % · 180 Mo")).toBeTruthy();
     expect(screen.getByText("Serveur de développement")).toBeTruthy();
+  });
+});
+
+describe("Processus", () => {
+  it("regroupe par application, sélectionne et confirme la fermeture", async () => {
+    const record = vi.fn();
+    render(
+      <ProcessesPanel
+        paused={false}
+        services={[fixture({ pid: 20, project: "shop" })]}
+        busy={null}
+        setBusy={vi.fn()}
+        setToast={vi.fn()}
+        record={record}
+      />,
+    );
+    const load = screen.getByRole("region", { name: "Load of this Mac" });
+    expect(load.textContent).toContain("40 %");
+    expect(load.textContent).toContain("30 % programs · 10 % kernel");
+    // The unattributed CPU sits among the processes, sorted by CPU.
+    const lines = screen
+      .getAllByRole("row")
+      .map((row) => row.querySelector("strong")?.textContent);
+    expect(lines.indexOf("macOS kernel (unattributed)")).toBeGreaterThan(
+      lines.indexOf("node"),
+    );
+    expect(screen.getByText("shop")).toBeTruthy();
+    expect(screen.queryByText("launchd")).toBeNull();
+    expect(screen.queryByText("Chrome Helper")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show the processes of Chrome" }),
+    );
+    expect(screen.getByText("Chrome Helper")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Chrome" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select node (20)" }));
+    expect(
+      screen.getByRole("region", { name: "Selected items" }).textContent,
+    ).toContain("2 selected");
+    fireEvent.click(screen.getByRole("button", { name: "Quit the selection" }));
+    expect(
+      screen.getByRole("heading", { name: "Quit these 2 items?" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Quit" }));
+    await vi.waitFor(() =>
+      expect(api.stopActivity).toHaveBeenCalledWith(
+        ["app:/Applications/Chrome.app", "pid:20"],
+        false,
+      ),
+    );
+    await vi.waitFor(() => expect(record).toHaveBeenCalled());
   });
 });

@@ -1,6 +1,7 @@
 import {
   Box,
   Clock3,
+  Cpu,
   History,
   Layers3,
   Settings2,
@@ -15,6 +16,7 @@ export const views = [
   { id: "docker", icon: Box },
   { id: "old", icon: Clock3 },
   { id: "system", icon: ShieldCheck },
+  { id: "processes", icon: Cpu },
   { id: "history", icon: History },
   { id: "settings", icon: Settings2 },
 ] as const;

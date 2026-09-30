@@ -22,6 +22,7 @@ import { useSettings } from "./hooks/useSettings";
 import { Sidebar } from "./components/Sidebar";
 import { Overview } from "./components/Overview";
 import { ServicesPanel } from "./components/ServicesPanel";
+import { ProcessesPanel } from "./components/ProcessesPanel";
 import { ActivityPanel } from "./components/ActivityPanel";
 import { ServiceDetails } from "./components/ServiceDetails";
 import { StopConfirmation } from "./components/StopConfirmation";
@@ -315,52 +316,59 @@ export default function App() {
                 <p>{w}</p>
               </div>
             ))}
-            {view !== "history" && view !== "settings" && (
-              <>
-                <Overview
-                  {...{
-                    snapshot,
-                    ports,
-                    services,
-                    oldServices,
-                    view,
-                    navigate,
-                    reviewHours,
-                  }}
-                />
-                <ServicesPanel
-                  {...{
-                    project,
-                    view,
-                    visible: groups.visible,
-                    query,
-                    setQuery,
-                    searchRef,
-                    sort,
-                    setSort,
-                    loading,
-                    snapshot,
-                    groups: groups.entries,
-                    busy,
-                    resistant,
-                    setDetails,
-                    setConfirm,
-                    open,
-                    reviewHours,
-                  }}
-                />
-                <div className="access-legend">
-                  <span>
-                    <span className="dot green" />
-                    {t.page.legendLocal}
-                  </span>
-                  <span>
-                    <span className="dot amber" />
-                    {t.page.legendNetwork}
-                  </span>
-                </div>
-              </>
+            {view === "processes" && (
+              <ProcessesPanel
+                {...{ paused, services, busy, setBusy, setToast, record }}
+              />
             )}
+            {view !== "history" &&
+              view !== "settings" &&
+              view !== "processes" && (
+                <>
+                  <Overview
+                    {...{
+                      snapshot,
+                      ports,
+                      services,
+                      oldServices,
+                      view,
+                      navigate,
+                      reviewHours,
+                    }}
+                  />
+                  <ServicesPanel
+                    {...{
+                      project,
+                      view,
+                      visible: groups.visible,
+                      query,
+                      setQuery,
+                      searchRef,
+                      sort,
+                      setSort,
+                      loading,
+                      snapshot,
+                      groups: groups.entries,
+                      busy,
+                      resistant,
+                      setDetails,
+                      setConfirm,
+                      open,
+                      reviewHours,
+                    }}
+                  />
+                  <div className="access-legend">
+                    <span>
+                      <span className="dot green" />
+                      {t.page.legendLocal}
+                    </span>
+                    <span>
+                      <span className="dot amber" />
+                      {t.page.legendNetwork}
+                    </span>
+                  </div>
+                </>
+              )}
             {view === "history" && (
               <ActivityPanel activity={activity} onClear={clear} />
             )}

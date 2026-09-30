@@ -555,6 +555,206 @@ h1 {
   line-height: 1.5;
   letter-spacing: 0;
 }
+/* Processes view */
+.activity-stats .stat:hover {
+  box-shadow: none;
+}
+.activity-stats .stat-value {
+  font-size: 40px;
+  letter-spacing: -2px;
+  white-space: nowrap;
+}
+.activity-stats .stat.pressure {
+  box-shadow: inset 0 -6px 0 var(--ink);
+}
+.filter-switch {
+  display: flex;
+  border: 2px solid var(--line);
+}
+.filter-switch button {
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.filter-switch button + button {
+  border-left: 2px solid var(--line);
+}
+.filter-switch button[aria-pressed="true"] {
+  background: var(--yellow);
+  color: var(--ink);
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 132px 96px 96px 118px;
+  align-items: center;
+  min-height: 54px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.activity-row:not(.activity-heading):hover {
+  background: var(--surface-hover);
+}
+.activity-row.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 5px 0 0 var(--blue);
+}
+.activity-row.kernel {
+  background: var(--bg);
+  color: var(--muted);
+}
+.activity-row.kernel strong {
+  color: var(--text);
+  font-style: italic;
+}
+.activity-row.kernel .load-bar > span {
+  background: var(--muted);
+}
+.activity-row.member {
+  min-height: 44px;
+  padding-left: 42px;
+  background: var(--bg);
+}
+.activity-row input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--blue);
+}
+.activity-heading {
+  min-height: 0;
+  padding-block: 10px;
+  border-block: 2px solid var(--line);
+  background: var(--sidebar);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.activity-heading > span:last-child {
+  text-align: right;
+}
+.sort-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: #c7c9dc;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.sort-heading.active,
+.sort-heading:hover {
+  color: var(--yellow);
+}
+.activity-name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding-right: 12px;
+}
+.activity-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 700;
+}
+.activity-name > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.activity-name .group-toggle {
+  gap: 7px;
+}
+.activity-name .group-toggle strong {
+  color: var(--text);
+}
+.project-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--ink);
+  background: var(--mint);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+.activity-cpu,
+.activity-number {
+  font-family: "JetBrains Mono Variable", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.activity-cpu {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-right: 18px;
+}
+.activity-number.muted {
+  color: var(--muted);
+}
+.load-bar {
+  display: block;
+  height: 5px;
+  background: var(--rule);
+}
+.load-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--mint);
+}
+.load-bar > .medium {
+  background: var(--yellow);
+}
+.load-bar > .high {
+  background: var(--pink);
+}
+.activity-row .row-actions .stop-button {
+  min-width: 96px;
+}
+.show-all {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border-bottom: 1px solid var(--rule);
+  font-weight: 600;
+}
+.selection-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 2px solid var(--line);
+  background: var(--yellow);
+  color: var(--ink);
+  font-weight: 600;
+}
+.selection-bar > span {
+  flex: 1;
+  font-family: "JetBrains Mono Variable", monospace;
+  font-size: 13px;
+}
+.selection-bar .secondary-button,
+.selection-bar .danger-button {
+  min-height: 38px;
+  padding: 7px 14px;
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.selection-bar .secondary-button {
+  background: transparent;
+}
 .review-banner {
   display: flex;
   align-items: center;
@@ -1631,6 +1831,13 @@ input::placeholder {
   }
 }
 @media (max-width: 1050px) {
+  .activity-row {
+    grid-template-columns: 30px minmax(0, 1fr) 112px 88px 0 108px;
+    padding-inline: 14px;
+  }
+  .activity-row > :nth-child(5) {
+    visibility: hidden;
+  }
   .sidebar {
     width: 218px;
     padding-inline: 14px;

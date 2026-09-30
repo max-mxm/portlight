@@ -3,6 +3,7 @@ use crate::tr;
 use crate::{
     docker, lineage,
     model::{ProcessSummary, Service, StopResult},
+    monitor::Target,
     process, project, scan,
 };
 use std::{
@@ -135,6 +136,12 @@ fn stop_service(service: &Service, force: bool) -> Result<StopResult, String> {
 /// Signals owned processes whose identity (PID + start time) is unchanged,
 /// then waits up to two seconds for them to exit. Returns the survivors.
 fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, String> {
+    send_signals(members, force)?;
+    wait_exit(members, Duration::from_secs(2))
+}
+
+/// Signals owned processes whose identity is unchanged, without waiting.
+fn send_signals(members: &[ProcessSummary], force: bool) -> Result<(), String> {
     let uid = unsafe { libc::geteuid() };
     // Revalidate every member right before the signal.
     let table = process::table()?;
@@ -158,7 +165,12 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
             }
         }
     }
-    let deadline = Instant::now() + Duration::from_secs(2);
+    Ok(())
+}
+
+/// Waits up to `limit` for the members to exit. Returns the survivors.
+fn wait_exit(members: &[ProcessSummary], limit: Duration) -> Result<Vec<u32>, String> {
+    let deadline = Instant::now() + limit;
     loop {
         thread::sleep(Duration::from_millis(120));
         let table = process::table()?;
@@ -457,6 +469,123 @@ pub fn stop_many(
     })
 }
 
+/// Asks an application to quit like ⌘Q, or forces it like "Force Quit".
+/// False when the process is not a registered application.
+fn quit_app(pid: u32, force: bool) -> bool {
+    use objc2_app_kit::NSRunningApplication;
+    NSRunningApplication::runningApplicationWithProcessIdentifier(pid as libc::pid_t).is_some_and(
+        |app| {
+            if force {
+                app.forceTerminate()
+            } else {
+                app.terminate()
+            }
+        },
+    )
+}
+
+/// Quits the applications and stops the processes chosen in the Processes
+/// view. Each target was resolved from the last sample; processes that
+/// have exited since are skipped, the others are revalidated.
+pub fn stop_activity(targets: Vec<(String, Target)>, force: bool) -> Result<GroupStop, String> {
+    let table = process::table()?;
+    let uid = unsafe { libc::geteuid() };
+    let live = |p: &ProcessSummary| alive(&table, p.pid, &p.identity);
+    let mut watched: Vec<(String, bool, Vec<ProcessSummary>)> = Vec::new();
+    let mut signals: Vec<ProcessSummary> = Vec::new();
+    let mut apps: Vec<ProcessSummary> = Vec::new();
+    for (id, target) in targets {
+        match target {
+            Target::App {
+                main: Some(main), ..
+            } => {
+                if !live(&main) {
+                    continue;
+                }
+                if table.get(&main.pid).is_none_or(|p| p.uid != uid) {
+                    return Err(l(
+                        "The process identity has changed. Refresh the list.",
+                        "L’identité du processus a changé. Actualisez la liste.",
+                    )
+                    .into());
+                }
+                watched.push((id, true, vec![main.clone()]));
+                apps.push(main);
+            }
+            Target::App { members, .. } => {
+                let members: Vec<ProcessSummary> =
+                    members.into_iter().filter(|m| live(m)).collect();
+                if !members.is_empty() {
+                    signals.extend(members.iter().cloned());
+                    watched.push((id, false, members));
+                }
+            }
+            Target::Process(process) => {
+                if live(&process) {
+                    signals.push(process.clone());
+                    watched.push((id, false, vec![process]));
+                }
+            }
+        }
+    }
+    if watched.is_empty() {
+        return Ok(GroupStop {
+            result: StopResult {
+                stopped: true,
+                message: l(
+                    "These processes are no longer running.",
+                    "Ces processus ne tournent plus.",
+                )
+                .into(),
+                remaining_ports: vec![],
+            },
+            resisting: vec![],
+        });
+    }
+    for main in &apps {
+        // Not a registered application: a signal does the same job.
+        if !quit_app(main.pid, force) {
+            signals.push(main.clone());
+        }
+    }
+    signals.sort_by_key(|p| p.pid);
+    signals.dedup_by_key(|p| p.pid);
+    send_signals(&signals, force)?;
+    // An application may take a moment to save and close its windows.
+    let everything: Vec<ProcessSummary> = watched.iter().flat_map(|(_, _, m)| m.clone()).collect();
+    let limit = if apps.is_empty() || force { 2 } else { 5 };
+    let survivors = wait_exit(&everything, Duration::from_secs(limit))?;
+    let resisting: Vec<(String, bool)> = watched
+        .into_iter()
+        .filter(|(_, _, members)| members.iter().any(|m| survivors.contains(&m.pid)))
+        .map(|(id, app, _)| (id, app))
+        .collect();
+    let message = if resisting.is_empty() {
+        l(
+            "Done. The selection no longer runs.",
+            "C’est fait. La sélection ne tourne plus.",
+        )
+    } else if resisting.iter().any(|(_, app)| *app) && !force {
+        l(
+            "Some applications have not quit. They may be waiting for you, for example to save a document. You can force them to quit.",
+            "Certaines applications ne se sont pas fermées. Elles attendent peut-être votre réponse, par exemple pour enregistrer un document. Vous pouvez forcer leur fermeture.",
+        )
+    } else {
+        l(
+            "Some processes resist the normal stop. You can force them to stop.",
+            "Certains processus résistent à l’arrêt normal. Vous pouvez forcer leur arrêt.",
+        )
+    };
+    Ok(GroupStop {
+        result: StopResult {
+            stopped: resisting.is_empty(),
+            message: message.into(),
+            remaining_ports: vec![],
+        },
+        resisting: resisting.into_iter().map(|(id, _)| id).collect(),
+    })
+}
+
 /// Editors proposed by "Ouvrir dans l’éditeur": (name, bundle).
 pub const EDITORS: &[(&str, &str)] = &[
     ("Visual Studio Code", "Visual Studio Code.app"),
@@ -636,6 +765,59 @@ mod tests {
         assert!(result.stopped, "{}", result.message);
         assert!(result.remaining_ports.is_empty());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn stop_activity_targets_created_by_the_test() {
+        let target = |child: &std::process::Child| {
+            let table = process::table().unwrap();
+            let entry = &table[&child.id()];
+            Target::Process(ProcessSummary {
+                pid: entry.pid,
+                name: "fixture".into(),
+                command: entry.command.clone(),
+                ports: vec![],
+                identity: entry.identity.clone(),
+            })
+        };
+        let quiet = Fixture(Command::new("/bin/sleep").arg("30").spawn().unwrap());
+        // Ignores SIGTERM: only the force stop ends it.
+        let stubborn = Command::new("node")
+            .args([
+                "-e",
+                "process.on('SIGTERM',()=>{});console.log('ready');setInterval(()=>{},1000)",
+            ])
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Node.js doit être installé pour ce test macOS");
+        let mut stubborn = Fixture(stubborn);
+        let mut line = String::new();
+        BufReader::new(stubborn.0.stdout.take().unwrap())
+            .read_line(&mut line)
+            .unwrap();
+        let normal = stop_activity(
+            vec![
+                ("pid:quiet".into(), target(&quiet.0)),
+                ("pid:stubborn".into(), target(&stubborn.0)),
+            ],
+            false,
+        )
+        .unwrap();
+        assert!(!normal.result.stopped);
+        assert_eq!(normal.resisting, vec!["pid:stubborn".to_string()]);
+        let forced =
+            stop_activity(vec![("pid:stubborn".into(), target(&stubborn.0))], true).unwrap();
+        assert!(forced.result.stopped, "{}", forced.result.message);
+        // Gone meanwhile: nothing is signaled, nothing fails.
+        let gone = Target::Process(ProcessSummary {
+            pid: quiet.0.id(),
+            name: "fixture".into(),
+            command: String::new(),
+            ports: vec![],
+            identity: "Mon Jan  1 00:00:00 2001".into(),
+        });
+        let result = stop_activity(vec![("pid:gone".into(), gone)], false).unwrap();
+        assert!(result.result.stopped && result.resisting.is_empty());
     }
 
     #[test]

@@ -65,4 +65,66 @@ export interface StopRequest {
 }
 export type ThemePreference = "system" | "light" | "dark";
 export type View =
-  "all" | "process" | "docker" | "old" | "system" | "history" | "settings";
+  | "all"
+  | "process"
+  | "docker"
+  | "old"
+  | "system"
+  | "processes"
+  | "history"
+  | "settings";
+export interface SystemStats {
+  /** Share of the whole machine, 0–100: programs plus kernel. */
+  cpuPercent: number;
+  programsPercent: number;
+  kernelPercent: number;
+  /** Gauge minus the sum of every process: work no process accounts for. */
+  unattributedPercent: number;
+  cores: number;
+  memoryUsed: number;
+  memoryTotal: number;
+  memoryPressure: "normal" | "warning" | "critical";
+  swapUsed: number;
+  swapTotal: number;
+  processCount: number;
+  ownCount: number;
+}
+export interface ProcessInfo {
+  id: string;
+  pid: number;
+  name: string;
+  path: string;
+  command: string;
+  own: boolean;
+  /** Share of one core, like top. */
+  cpuPercent: number;
+  memoryBytes: number;
+  /** CPU measured between two samples; otherwise averaged by ps. */
+  precise: boolean;
+  /** Footprint as in Activity Monitor; otherwise resident memory. */
+  exactMemory: boolean;
+  elapsedSeconds: number;
+  stoppable: boolean;
+  reason: string | null;
+}
+export interface AppGroup {
+  id: string;
+  name: string;
+  bundle: string;
+  mainPid: number | null;
+  own: boolean;
+  cpuPercent: number;
+  memoryBytes: number;
+  precise: boolean;
+  exactMemory: boolean;
+  elapsedSeconds: number;
+  stoppable: boolean;
+  reason: string | null;
+  processes: ProcessInfo[];
+}
+export interface ActivitySnapshot {
+  system: SystemStats;
+  apps: AppGroup[];
+  processes: ProcessInfo[];
+  sampledAt: number;
+}

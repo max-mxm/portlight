@@ -65,6 +65,7 @@ src-tauri/target/release/portlight --scan-json
 - Menu bar: the number of occupied development ports and a stop shortcut per service, always confirmed in the window. Closing the window keeps Portlight in the menu bar; quit it from the menu.
 - Recognize development servers by program name (Node, Python, Ruby, PHP, Java, .NET, Elixir, databases…) and binaries built inside a repository (`cargo run`, `go run`, air).
 - Settings: “To review” delay, project folders, extra development programs, preferred editor, and optional launch at login.
+- Processes view, a visual `top`: CPU, memory, memory pressure and swap of the Mac, then every process grouped by application (Chrome and its helpers on one line), sorted by CPU, memory, name or uptime. Quit applications the way `⌘Q` does, stop other processes, and select several items to see what they would free before confirming.
 - `⌘K`: quick actions, type `:3000` to free port 3000. `⌘F`: search. `⌘R`: refresh.
 
 ## How it works
@@ -86,6 +87,7 @@ Rust sends the signals; commands supplied by the interface are never interpreted
 - `src-tauri/src/process.rs`: command execution without a shell, timeouts, and the process table.
 - `src-tauri/src/settings.rs`: validated settings in `~/Library/Application Support/dev.portlight.desktop`.
 - `src-tauri/src/tray.rs`: menu bar item.
+- `src-tauri/src/monitor.rs`: live CPU and memory of the Mac and of each process, grouped by application.
 - `src-tauri/src/lib.rs`: typed IPC commands; system work runs outside the UI thread.
 - `src-tauri/src/i18n.rs` and `src/i18n/`: English and French texts; the French dictionary must match the English one, checked by TypeScript.
 - `src/hooks/`: inventory, history, shortcuts, theme, and settings state.
@@ -94,7 +96,9 @@ Rust sends the signals; commands supplied by the interface are never interpreted
 
 ## Current limitations
 
-This first version lists **listening TCP ports**, not all UDP sockets or outgoing connections. Some system metadata may be unavailable without administrator privileges. macOS services, IDEs, emulators, and other users’ processes are protected. Stopping services from the interface is limited to recognized development processes owned by the current user and Docker containers.
+This first version lists **listening TCP ports**, not all UDP sockets or outgoing connections. Some system metadata may be unavailable without administrator privileges. macOS services, IDEs, emulators, and other users’ processes are protected. Stopping services from the interface is limited to recognized development processes owned by the current user and Docker containers. The Processes view can quit or stop any process of the current user, except macOS services, container engines and Portlight itself.
+
+In the Processes view, CPU is measured between two samples, like `top`, but shown as a share of the whole Mac (all cores = 100 %, where `top` counts 100 % per core), so the processes add up to the CPU gauge. Every process is measured the same way, from its CPU time between two samples (nanosecond precision for the current user’s processes, 10 ms from `ps` for the others). The gauge comes from the machine-wide counters and is split into programs and kernel time; what no process accounts for (`kernel_task`, interrupts, memory compression, processes that came and went between samples) is shown as an “unattributed” line, so the lines add up exactly to the gauge. `top` leaves the same gap between its total and its processes. Memory is the footprint shown by Activity Monitor. macOS only exposes it for the current user’s processes: other processes show their resident memory (marked with `≈`). `top` reads it because it runs as root; Portlight does not ask for these privileges. The view samples every 2 seconds, only while it is visible.
 
 Process identity checks use the PID and start time reported by `ps` (with one-second precision), with another check before sending a signal. This reduces the risk of PID reuse but does not provide the atomic guarantee of a process handle. A supervisor may restart a process; Portlight reports when a port remains occupied after a stop.
 
