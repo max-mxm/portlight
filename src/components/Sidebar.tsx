@@ -1,5 +1,6 @@
 import { Laptop, Monitor, Moon, Radio, Search, Sun } from "lucide-react";
 import type { Service, ThemePreference, View } from "../types";
+import { native } from "../api";
 import { views } from "../navigation";
 import { LANGUAGES, useT, type Language } from "../i18n";
 interface Props {
@@ -46,6 +47,7 @@ export function Sidebar({
   const t = useT();
   return (
     <aside className="sidebar">
+      {native && <div className="titlebar-space" data-tauri-drag-region />}
       <div className="brand">
         <div className="brand-mark">
           <Radio aria-hidden="true" size={22} />

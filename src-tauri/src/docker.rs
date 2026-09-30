@@ -91,6 +91,16 @@ pub fn running(id: &str, started: &str) -> Result<bool, String> {
         .is_some_and(|d| d.running && d.started == started))
 }
 
+/// Start time of each container among `ids` that still runs, in one call.
+pub fn running_since(ids: &[&str]) -> Result<HashMap<String, String>, String> {
+    let bin = binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
+    Ok(inspect(&bin, ids)?
+        .into_values()
+        .filter(|d| d.running)
+        .map(|d| (d.id, d.started))
+        .collect())
+}
+
 fn parse_inspect(text: &str) -> Result<HashMap<String, Details>, String> {
     text.lines()
         .filter(|line| !line.trim().is_empty())

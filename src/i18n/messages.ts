@@ -90,6 +90,7 @@ export const en = {
     gone: "This service is no longer running. Its ports are free.",
     historyGroup: (name: string) => `${name} and its launcher`,
     historyCompose: (project: string) => `Compose project ${project}`,
+    historyProject: (name: string) => `${name} group`,
     byAge: "By uptime",
   },
   overview: {
@@ -141,6 +142,11 @@ export const en = {
     safety: "Normal stop first · System services protected",
     scannedAt: (time: string) => `Scanned at ${time}`,
     noScan: "No scan yet",
+    collapseAll: "Collapse all groups",
+    expandAll: "Expand all groups",
+    stopGroup: "Stop group",
+    forceGroup: "Force stop",
+    stopGroupTitle: (name: string) => `Stop every service of ${name}`,
   },
   row: {
     openPort: (port: number) => `Open port ${port} in the browser`,
@@ -216,6 +222,12 @@ export const en = {
     stop: "Stop",
     stopProcesses: (n: number) => `Stop ${n} processes`,
     stopContainers: (n: number) => `Stop ${n} containers`,
+    projectTitle: (name: string) => `Stop the ${name} group?`,
+    forceProjectTitle: (name: string) => `Force stop the ${name} group?`,
+    projectText:
+      "Portlight will ask each process and its launcher to exit normally, then stop the containers with a single docker stop, including the other containers of their Compose project. Their data and configuration are kept.",
+    projectSummary: (n: number) => `${n} service${n > 1 ? "s" : ""}`,
+    stopGroup: "Stop the group",
   },
   palette: {
     title: "Quick actions",
@@ -413,6 +425,7 @@ export const fr: Messages = {
     gone: "Ce service ne tourne plus. Ses ports sont libérés.",
     historyGroup: (name) => `${name} et son lanceur`,
     historyCompose: (project) => `Projet Compose ${project}`,
+    historyProject: (name) => `Groupe ${name}`,
     byAge: "Par durée d’activité",
   },
   overview: {
@@ -465,6 +478,11 @@ export const fr: Messages = {
     safety: "Arrêt normal en priorité · Services système protégés",
     scannedAt: (time) => `Relevé à ${time}`,
     noScan: "Aucun relevé",
+    collapseAll: "Replier tous les groupes",
+    expandAll: "Déplier tous les groupes",
+    stopGroup: "Arrêter le groupe",
+    forceGroup: "Forcer l’arrêt",
+    stopGroupTitle: (name) => `Arrêter tous les services de ${name}`,
   },
   row: {
     openPort: (port) => `Ouvrir le port ${port} dans le navigateur`,
@@ -539,6 +557,12 @@ export const fr: Messages = {
     stop: "Arrêter",
     stopProcesses: (n) => `Arrêter ${n} processus`,
     stopContainers: (n) => `Arrêter ${n} conteneurs`,
+    projectTitle: (name) => `Arrêter le groupe ${name} ?`,
+    forceProjectTitle: (name) => `Forcer l’arrêt du groupe ${name} ?`,
+    projectText:
+      "Portlight demandera à chaque processus et à son lanceur de se fermer normalement, puis arrêtera les conteneurs en un seul docker stop, avec les autres conteneurs de leur projet Compose. Leurs données et leur configuration seront conservées.",
+    projectSummary: (n) => `${n} service${n > 1 ? "s" : ""}`,
+    stopGroup: "Arrêter le groupe",
   },
   palette: {
     title: "Actions rapides",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { applyWindowTheme, native } from "../api";
 import type { ThemePreference } from "../types";
 
 const KEY = "portlight.themePreference";
@@ -35,7 +36,13 @@ export function useTheme() {
   const dark = preference === "dark" || (preference === "system" && system);
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
-  }, [dark]);
+    if (!native) return;
+    const background = getComputedStyle(document.documentElement)
+      .getPropertyValue("--bg")
+      .trim();
+    // The page keeps its own theme if the window cannot follow.
+    applyWindowTheme(preference, background).catch(() => {});
+  }, [dark, preference]);
   useEffect(() => {
     try {
       localStorage.setItem(KEY, preference);

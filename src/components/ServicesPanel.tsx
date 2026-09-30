@@ -2,17 +2,23 @@ import {
   ArrowDownUp,
   Check,
   ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Folder,
   Radio,
   RefreshCw,
   Search,
   ShieldCheck,
+  Square,
   X,
 } from "lucide-react";
 import type { RefObject } from "react";
 import type { Service, Snapshot, StopRequest, View } from "../types";
 import { ServiceRow } from "./ServiceRow";
 import { useT } from "../i18n";
+import { useCollapsed } from "../hooks/useCollapsed";
+import { resistantKey } from "../services";
 interface Props {
   project: string;
   view: View;
@@ -26,6 +32,7 @@ interface Props {
   snapshot: Snapshot | null;
   groups: [string, Service[]][];
   busy: string | null;
+  resistant: Set<string>;
   setDetails: (s: Service) => void;
   setConfirm: (value: StopRequest) => void;
   open: (s: Service, port: number) => Promise<void>;
@@ -44,6 +51,7 @@ export function ServicesPanel({
   snapshot,
   groups,
   busy,
+  resistant,
   setDetails,
   setConfirm,
   open,
@@ -51,6 +59,23 @@ export function ServicesPanel({
 }: Props) {
   const t = useT();
   const l = t.services;
+  const { collapsed, toggle, setAll } = useCollapsed();
+  const names = groups.map(([name]) => name);
+  const allCollapsed = names.length > 0 && names.every((n) => collapsed.has(n));
+  function stopGroup(name: string, items: Service[]) {
+    const force = resistant.has(resistantKey("project", name));
+    // A force stop only concerns the processes: containers are never forced.
+    const members = items.filter(
+      (s) => s.stoppable && (!force || s.kind !== "docker"),
+    );
+    if (members.length)
+      setConfirm({
+        service: members[0],
+        force,
+        scope: "project",
+        group: { name, members },
+      });
+  }
   return (
     <section className="services-panel" aria-label={l.label}>
       <div className="panel-toolbar">
@@ -59,6 +84,20 @@ export function ServicesPanel({
           <span className="count-badge">{visible.length}</span>
         </div>
         <div className="toolbar-controls">
+          {names.length > 1 && (
+            <button
+              className="icon-button collapse-all"
+              aria-label={allCollapsed ? l.expandAll : l.collapseAll}
+              title={allCollapsed ? l.expandAll : l.collapseAll}
+              onClick={() => setAll(names, !allCollapsed)}
+            >
+              {allCollapsed ? (
+                <ChevronsUpDown aria-hidden="true" size={17} />
+              ) : (
+                <ChevronsDownUp aria-hidden="true" size={17} />
+              )}
+            </button>
+          )}
           <label className="search-box">
             <Search aria-hidden="true" size={16} />
             <input
@@ -105,29 +144,66 @@ export function ServicesPanel({
             <p>{l.loadingText}</p>
           </div>
         ) : groups.length ? (
-          groups.map(([p, items]) => (
-            <div key={p} role="rowgroup">
-              <div className="group-heading">
-                <Folder aria-hidden="true" size={15} />
-                <strong>{p}</strong>
-                <span>{l.count(items.length)}</span>
+          groups.map(([p, items]) => {
+            // A search always shows its matches.
+            const expanded = !collapsed.has(p) || query.trim() !== "";
+            const key = resistantKey("project", p);
+            const stoppable = items.filter((s) => s.stoppable).length;
+            return (
+              <div key={p} role="rowgroup">
+                <div className="group-heading">
+                  <button
+                    className="group-toggle"
+                    aria-expanded={expanded}
+                    onClick={() => toggle(p)}
+                  >
+                    <ChevronRight
+                      aria-hidden="true"
+                      size={15}
+                      className="group-chevron"
+                    />
+                    <Folder aria-hidden="true" size={15} />
+                    <strong>{p}</strong>
+                    <span>{l.count(items.length)}</span>
+                  </button>
+                  {sort === "project" && stoppable > 0 && (
+                    <button
+                      className="stop-button group-stop"
+                      disabled={busy !== null}
+                      title={l.stopGroupTitle(p)}
+                      onClick={() => stopGroup(p, items)}
+                    >
+                      <Square aria-hidden="true" size={12} />
+                      {busy === key
+                        ? t.row.stopping
+                        : resistant.has(key)
+                          ? l.forceGroup
+                          : l.stopGroup}
+                    </button>
+                  )}
+                </div>
+                {expanded &&
+                  items.map((s) => (
+                    <ServiceRow
+                      key={s.id}
+                      service={s}
+                      busy={busy === s.id}
+                      disabled={busy !== null}
+                      onDetails={() => setDetails(s)}
+                      reviewHours={reviewHours}
+                      onStop={() =>
+                        setConfirm({
+                          service: s,
+                          force: false,
+                          scope: "service",
+                        })
+                      }
+                      onOpen={(port) => void open(s, port)}
+                    />
+                  ))}
               </div>
-              {items.map((s) => (
-                <ServiceRow
-                  key={s.id}
-                  service={s}
-                  busy={busy === s.id}
-                  disabled={busy !== null}
-                  onDetails={() => setDetails(s)}
-                  reviewHours={reviewHours}
-                  onStop={() =>
-                    setConfirm({ service: s, force: false, scope: "service" })
-                  }
-                  onOpen={(port) => void open(s, port)}
-                />
-              ))}
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="empty-state">
             <div className="empty-icon">

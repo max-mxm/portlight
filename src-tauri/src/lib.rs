@@ -20,7 +20,7 @@ use std::{
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{window::Color, AppHandle, Emitter, Manager, RunEvent, Theme, WindowEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 const SNAPSHOT_EVENT: &str = "portlight://snapshot";
@@ -165,6 +165,77 @@ async fn stop_service(
     result
 }
 
+/// Stops the services of a project group shown in the window.
+#[tauri::command]
+async fn stop_services(
+    ids: Vec<String>,
+    force: bool,
+    state: tauri::State<'_, Inventory>,
+) -> Result<StopResult, String> {
+    let services = ids
+        .iter()
+        .map(|id| find(&state, id))
+        .collect::<Result<Vec<_>, _>>()?;
+    if services.is_empty() {
+        return Err(l("No service to stop", "Aucun service à arrêter").into());
+    }
+    let key = |id: &str| format!("Group:{id}");
+    // Processes only: containers are never forced.
+    let processes: Vec<String> = services
+        .iter()
+        .filter(|s| s.container_id.is_none())
+        .map(|s| key(&s.id))
+        .collect();
+    if force {
+        let resistant = state
+            .resistant
+            .lock()
+            .map_err(|_| l("State unavailable", "État indisponible"))?;
+        if processes.is_empty() || processes.iter().any(|k| !resistant.contains(k)) {
+            return Err(l(
+                "Try a normal stop first.",
+                "Essayez d’abord un arrêt normal.",
+            )
+            .into());
+        }
+    }
+    let inventory = state
+        .snapshot
+        .lock()
+        .map_err(|_| l("Inventory unavailable", "Inventaire indisponible"))?
+        .as_ref()
+        .map(|s| s.services.clone())
+        .unwrap_or_default();
+    if state
+        .stopping
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(l(
+            "A stop is already in progress. Please wait a moment.",
+            "Un arrêt est déjà en cours. Patientez un instant.",
+        )
+        .into());
+    }
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        actions::stop_many(&services, &inventory, force)
+    })
+    .await
+    .map_err(|e| e.to_string())
+    .and_then(|result| result);
+    state.stopping.store(false, Ordering::SeqCst);
+    let stop = result?;
+    let mut resistant = state
+        .resistant
+        .lock()
+        .map_err(|_| l("State unavailable", "État indisponible"))?;
+    for k in &processes {
+        resistant.remove(k);
+    }
+    resistant.extend(stop.resisting.iter().map(|id| key(id)));
+    Ok(stop.result)
+}
+
 #[tauri::command]
 async fn open_port(
     id: String,
@@ -240,6 +311,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_services,
             stop_service,
+            stop_services,
             open_port,
             open_folder,
             list_editors,
@@ -252,6 +324,15 @@ pub fn run() {
             // Applies the saved language before the menu bar is built.
             settings::load();
             tray::create(app.handle())?;
+            // Matches macOS until the page applies the chosen theme (--bg in styles.css).
+            if let Some(window) = app.get_webview_window("main") {
+                let dark = window.theme().is_ok_and(|t| t == Theme::Dark);
+                let _ = window.set_background_color(Some(if dark {
+                    Color(0x12, 0x13, 0x23, 0xff)
+                } else {
+                    Color(0xf6, 0xf5, 0xf0, 0xff)
+                }));
+            }
             // Launched at login: stay in the menu bar until asked.
             if !std::env::args().any(|arg| arg == "--hidden") {
                 tray::show_window(app.handle());

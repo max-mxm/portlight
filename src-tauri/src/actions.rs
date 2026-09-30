@@ -173,7 +173,12 @@ fn signal_all(members: &[ProcessSummary], force: bool) -> Result<Vec<u32>, Strin
     }
 }
 
-fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
+/// The launcher and its descendants, recomputed from the current process
+/// table and checked against the inventoried launcher.
+fn current_launch_group(
+    service: &Service,
+    table: &HashMap<u32, process::ProcessEntry>,
+) -> Result<Vec<ProcessSummary>, String> {
     let Some(shown) = service.launch_group.first() else {
         return Err(l(
             "This service has no launcher that can be stopped safely.",
@@ -181,11 +186,9 @@ fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
         )
         .into());
     };
-    // Recompute the group from the current process table.
-    let table = process::table()?;
     let uid = unsafe { libc::geteuid() };
     let group = lineage::launch_group(
-        &table,
+        table,
         service.pid,
         uid,
         std::process::id(),
@@ -201,6 +204,11 @@ fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
         )
         .into());
     }
+    Ok(group)
+}
+
+fn stop_group(service: &Service, force: bool) -> Result<StopResult, String> {
+    let group = current_launch_group(service, &process::table()?)?;
     let survivors = signal_all(&group, force)?;
     let ports: BTreeSet<u16> = service
         .launch_group
@@ -292,6 +300,160 @@ fn stop_compose(
         }
         .into(),
         remaining_ports,
+    })
+}
+
+/// Result of a grouped stop and the services whose processes resisted.
+pub struct GroupStop {
+    pub result: StopResult,
+    pub resisting: Vec<String>,
+}
+
+/// Stops the services of a project group at once. Each process goes with its
+/// launcher when it has one. Containers go with their whole Compose project
+/// and are stopped by a single `docker stop`, which Docker runs in parallel.
+/// `force` only applies to processes: containers are always stopped normally.
+pub fn stop_many(
+    services: &[Service],
+    inventory: &[Service],
+    force: bool,
+) -> Result<GroupStop, String> {
+    if let Some(protected) = services.iter().find(|s| !s.stoppable) {
+        return Err(protected
+            .reason
+            .clone()
+            .unwrap_or(l("Protected service", "Service protégé").into()));
+    }
+    let (containers, processes): (Vec<&Service>, Vec<&Service>) =
+        services.iter().partition(|s| s.container_id.is_some());
+
+    // Processes: revalidate everything before the first signal.
+    let table = process::table()?;
+    let mut members: Vec<ProcessSummary> = Vec::new();
+    let mut owners: Vec<(&str, Vec<u32>)> = Vec::new();
+    for service in processes {
+        if !alive(&table, service.pid, &service.identity) {
+            continue;
+        }
+        let group = if service.launch_group.is_empty() {
+            vec![summary(service)]
+        } else {
+            current_launch_group(service, &table)?
+        };
+        owners.push((&service.id, group.iter().map(|m| m.pid).collect()));
+        for member in group {
+            if !members.iter().any(|m| m.pid == member.pid) {
+                members.push(member);
+            }
+        }
+    }
+
+    // Containers: the running ones, with the rest of their Compose project.
+    let ids: Vec<&str> = containers
+        .iter()
+        .filter_map(|s| s.container_id.as_deref())
+        .collect();
+    let running = if ids.is_empty() {
+        HashMap::new()
+    } else {
+        docker::running_since(&ids)?
+    };
+    let mut targets: BTreeSet<String> = BTreeSet::new();
+    let mut projects: BTreeSet<&str> = BTreeSet::new();
+    for service in &containers {
+        match service.compose_project.as_deref() {
+            Some(project) => {
+                if !projects.insert(project) {
+                    continue;
+                }
+                let current = docker::compose_containers(project)?;
+                let names: Vec<&str> = current.iter().map(|(_, n)| n.as_str()).collect();
+                // Already stopped since the scan: nothing to do.
+                if current.is_empty() {
+                    continue;
+                }
+                if names != service.compose_containers {
+                    return Err(l(
+                        "The project’s containers have changed. Refresh the list.",
+                        "Les conteneurs du projet ont changé. Actualisez la liste.",
+                    )
+                    .into());
+                }
+                targets.extend(current.into_iter().map(|(id, _)| id));
+            }
+            None => {
+                let id = service.container_id.as_deref().unwrap_or_default();
+                if running.get(id) == Some(&service.identity) {
+                    targets.insert(id.to_owned());
+                }
+            }
+        }
+    }
+
+    let survivors = if members.is_empty() {
+        vec![]
+    } else {
+        signal_all(&members, force)?
+    };
+    let mut containers_running = false;
+    if !targets.is_empty() {
+        let bin = docker::binary().ok_or(l("Docker unavailable", "Docker indisponible"))?;
+        let mut args = vec!["stop", "--time", "5"];
+        args.extend(targets.iter().map(String::as_str));
+        process::output(&bin, &args, Duration::from_secs(40))?;
+        let ids: Vec<&str> = targets.iter().map(String::as_str).collect();
+        containers_running = !docker::running_since(&ids)?.is_empty();
+    }
+
+    let ports: BTreeSet<u16> = inventory
+        .iter()
+        .filter(|s| {
+            s.compose_project
+                .as_deref()
+                .is_some_and(|p| projects.contains(p))
+        })
+        .chain(services)
+        .flat_map(|s| s.ports.iter().copied())
+        .collect();
+    let remaining_ports = used_ports(&ports, &scan::listening_ports()?);
+    let resisting: Vec<String> = owners
+        .into_iter()
+        .filter(|(_, pids)| pids.iter().any(|p| survivors.contains(p)))
+        .map(|(id, _)| id.to_owned())
+        .collect();
+    let message = if members.is_empty() && targets.is_empty() {
+        l(
+            "These services are no longer running.",
+            "Ces services ne tournent plus.",
+        )
+    } else if !resisting.is_empty() {
+        l(
+            "Some processes resist the normal stop. You can force them to stop.",
+            "Certains processus résistent à l’arrêt normal. Vous pouvez forcer leur arrêt.",
+        )
+    } else if containers_running {
+        l(
+            "Some containers are still running.",
+            "Certains conteneurs tournent encore.",
+        )
+    } else if !remaining_ports.is_empty() {
+        l(
+            "Group stopped, but some ports are still in use.",
+            "Groupe arrêté, mais certains ports sont encore utilisés.",
+        )
+    } else {
+        l(
+            "Group stopped. Its ports are free.",
+            "Groupe arrêté. Ses ports sont libérés.",
+        )
+    };
+    Ok(GroupStop {
+        result: StopResult {
+            stopped: resisting.is_empty() && !containers_running,
+            message: message.into(),
+            remaining_ports,
+        },
+        resisting,
     })
 }
 
@@ -473,6 +635,60 @@ mod tests {
         let result = stop(service, &[], false, Scope::Group).unwrap();
         assert!(result.stopped, "{}", result.message);
         assert!(result.remaining_ports.is_empty());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn stop_many_processes_created_by_the_test() {
+        use std::os::unix::process::CommandExt;
+        let dir = std::env::temp_dir().join(format!("portlight-many-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let launcher = dir.join("nodemon.js");
+        std::fs::write(
+            &launcher,
+            "require('child_process').spawn(process.execPath,['-e',\"const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>console.log(s.address().port))\"],{stdio:'inherit'});",
+        )
+        .unwrap();
+        let script = format!("node '{}'; true", launcher.display());
+        let grouped = Command::new("/bin/sh")
+            .args(["-c", &script])
+            .process_group(0)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Node.js doit être installé pour ce test macOS");
+        let mut grouped = Group(grouped);
+        // Ignores SIGTERM: only the force stop ends it.
+        let stubborn = Command::new("node").args(["-e","process.on('SIGTERM',()=>{});const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>console.log(s.address().port));"])
+            .stdout(Stdio::piped()).spawn().expect("Node.js doit être installé pour ce test macOS");
+        let mut stubborn = Fixture(stubborn);
+        let port = |out: std::process::ChildStdout| {
+            let mut line = String::new();
+            BufReader::new(out).read_line(&mut line).unwrap();
+            line.trim().parse::<u16>().unwrap()
+        };
+        let grouped_port = port(grouped.0.stdout.take().unwrap());
+        let stubborn_port = port(stubborn.0.stdout.take().unwrap());
+        let inventory = scan::snapshot().unwrap().services;
+        let find = |port: u16| {
+            inventory
+                .iter()
+                .find(|s| s.kind == "process" && s.ports.contains(&port))
+                .cloned()
+                .expect("Les serveurs temporaires doivent être détectés")
+        };
+        let (a, b) = (find(grouped_port), find(stubborn_port));
+        assert_eq!(a.launch_group.len(), 2, "Lanceur et serveur");
+        let normal = stop_many(&[a, b.clone()], &inventory, false).unwrap();
+        assert!(!normal.result.stopped);
+        assert_eq!(normal.resisting, vec![b.id.clone()]);
+        assert_eq!(normal.result.remaining_ports, vec![stubborn_port]);
+        let forced = stop_many(&[b], &inventory, true).unwrap();
+        assert!(forced.result.stopped, "{}", forced.result.message);
+        assert!(forced.resisting.is_empty());
+        assert!(scan::listening_ports()
+            .unwrap()
+            .is_disjoint(&[grouped_port, stubborn_port].into()));
+        let _ = stubborn.0.wait();
         let _ = std::fs::remove_dir_all(dir);
     }
 }

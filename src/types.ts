@@ -54,12 +54,14 @@ export interface Settings {
   editor: string | null;
   language: "en" | "fr";
 }
-/** service: the listener only · group: its launcher and descendants · compose: the whole Compose project */
-export type StopScope = "service" | "group" | "compose";
+/** service: the listener only · group: its launcher and descendants · compose: the whole Compose project · project: every stoppable service of a project group */
+export type StopScope = "service" | "group" | "compose" | "project";
 export interface StopRequest {
   service: Service;
   force: boolean;
   scope: StopScope;
+  /** Project scope: the group name and the services it stops. */
+  group?: { name: string; members: Service[] };
 }
 export type ThemePreference = "system" | "light" | "dark";
 export type View =

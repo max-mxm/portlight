@@ -2,5 +2,10 @@
   "identifier": "main",
   "description": "Fenêtre locale de Portlight",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-theme",
+    "core:window:allow-set-background-color"
+  ]
 }
