@@ -4,6 +4,7 @@ mod docker;
 mod i18n;
 mod lineage;
 mod model;
+mod monitor;
 mod process;
 mod project;
 mod scan;
@@ -26,6 +27,13 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 const SNAPSHOT_EVENT: &str = "portlight://snapshot";
 /// Keeps the menu bar count current while the window is hidden.
 const TRAY_REFRESH: Duration = Duration::from_secs(30);
+
+/// Previous counters and last sample of the Processes view.
+#[derive(Default)]
+struct Activity {
+    counters: Mutex<Option<monitor::Counters>>,
+    last: Mutex<Option<monitor::ActivitySnapshot>>,
+}
 
 #[derive(Default)]
 struct Inventory {
@@ -236,6 +244,98 @@ async fn stop_services(
     Ok(stop.result)
 }
 
+/// Samples CPU and memory, per process and for the whole Mac.
+#[tauri::command]
+async fn sample_activity(
+    state: tauri::State<'_, Activity>,
+) -> Result<monitor::ActivitySnapshot, String> {
+    let previous = state
+        .counters
+        .lock()
+        .map_err(|_| l("State unavailable", "État indisponible"))?
+        .take();
+    let (snapshot, counters) =
+        tauri::async_runtime::spawn_blocking(move || monitor::sample(previous))
+            .await
+            .map_err(|e| e.to_string())??;
+    *state
+        .counters
+        .lock()
+        .map_err(|_| l("State unavailable", "État indisponible"))? = Some(counters);
+    *state
+        .last
+        .lock()
+        .map_err(|_| l("State unavailable", "État indisponible"))? = Some(snapshot.clone());
+    Ok(snapshot)
+}
+
+/// Quits applications and stops processes chosen in the Processes view.
+#[tauri::command]
+async fn stop_activity(
+    ids: Vec<String>,
+    force: bool,
+    activity: tauri::State<'_, Activity>,
+    state: tauri::State<'_, Inventory>,
+) -> Result<StopResult, String> {
+    if ids.is_empty() {
+        return Err(l("No process to stop", "Aucun processus à arrêter").into());
+    }
+    let key = |id: &str| format!("Activity:{id}");
+    let targets = {
+        let last = activity
+            .last
+            .lock()
+            .map_err(|_| l("State unavailable", "État indisponible"))?;
+        let snapshot = last.as_ref().ok_or(l(
+            "No sample yet. Refresh the list.",
+            "Aucun relevé pour l’instant. Actualisez la liste.",
+        ))?;
+        ids.iter()
+            .map(|id| monitor::resolve(snapshot, id).map(|t| (id.clone(), t)))
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    if force {
+        let resistant = state
+            .resistant
+            .lock()
+            .map_err(|_| l("State unavailable", "État indisponible"))?;
+        if ids.iter().any(|id| !resistant.contains(&key(id))) {
+            return Err(l(
+                "Try a normal stop first.",
+                "Essayez d’abord un arrêt normal.",
+            )
+            .into());
+        }
+    }
+    if state
+        .stopping
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(l(
+            "A stop is already in progress. Please wait a moment.",
+            "Un arrêt est déjà en cours. Patientez un instant.",
+        )
+        .into());
+    }
+    let result =
+        tauri::async_runtime::spawn_blocking(move || actions::stop_activity(targets, force))
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|result| result);
+    state.stopping.store(false, Ordering::SeqCst);
+    let stop = result?;
+    let mut resistant = state
+        .resistant
+        .lock()
+        .map_err(|_| l("State unavailable", "État indisponible"))?;
+    for id in &ids {
+        resistant.remove(&key(id));
+    }
+    resistant.extend(stop.resisting.iter().map(|id| key(id)));
+    Ok(stop.result)
+}
+
 #[tauri::command]
 async fn open_port(
     id: String,
@@ -308,10 +408,13 @@ pub fn run() {
             Some(vec!["--hidden"]),
         ))
         .manage(Inventory::default())
+        .manage(Activity::default())
         .invoke_handler(tauri::generate_handler![
             scan_services,
             stop_service,
             stop_services,
+            sample_activity,
+            stop_activity,
             open_port,
             open_folder,
             list_editors,

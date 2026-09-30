@@ -98,6 +98,8 @@ pub struct ProcessEntry {
     pub uid: u32,
     pub cpu: f32,
     pub rss_kb: u64,
+    /// CPU time consumed since the start, in milliseconds (10 ms precision).
+    pub cpu_time_ms: u64,
     /// Exited but not yet reaped by its parent: it holds no socket anymore.
     pub zombie: bool,
     pub identity: String,
@@ -105,14 +107,14 @@ pub struct ProcessEntry {
     pub command: String,
 }
 
-const COLUMNS: &str = "pid=,ppid=,uid=,%cpu=,rss=,stat=,lstart=,etime=,command=";
+const COLUMNS: &str = "pid=,ppid=,uid=,%cpu=,rss=,time=,stat=,lstart=,etime=,command=";
 
-/// Parses `ps -o pid=,ppid=,uid=,%cpu=,rss=,stat=,lstart=,etime=,command=` (LC_ALL=C).
+/// Parses `ps -o pid=,ppid=,uid=,%cpu=,rss=,time=,stat=,lstart=,etime=,command=` (LC_ALL=C).
 pub fn parse_table(text: &str) -> Vec<ProcessEntry> {
     text.lines()
         .filter_map(|line| {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 12 {
+            if parts.len() < 13 {
                 return None;
             }
             Some(ProcessEntry {
@@ -121,11 +123,12 @@ pub fn parse_table(text: &str) -> Vec<ProcessEntry> {
                 uid: parts[2].parse().ok()?,
                 cpu: parts[3].replace(',', ".").parse().unwrap_or(0.0),
                 rss_kb: parts[4].parse().unwrap_or(0),
-                zombie: parts[5].starts_with('Z'),
+                cpu_time_ms: parse_cpu_time(parts[5]),
+                zombie: parts[6].starts_with('Z'),
                 // lstart: "Sat Sep 27 10:00:00 2026", one-second precision.
-                identity: parts[6..11].join(" "),
-                elapsed: parse_elapsed(parts[11]),
-                command: parts[12..].join(" "),
+                identity: parts[7..12].join(" "),
+                elapsed: parse_elapsed(parts[12]),
+                command: parts[13..].join(" "),
             })
         })
         .collect()
@@ -135,6 +138,18 @@ pub fn parse_table(text: &str) -> Vec<ProcessEntry> {
 pub fn table() -> Result<HashMap<u32, ProcessEntry>, String> {
     let text = output("/bin/ps", &["-A", "-o", COLUMNS], Duration::from_secs(4))?;
     Ok(parse_table(&text).into_iter().map(|p| (p.pid, p)).collect())
+}
+
+/// "299:35.07" (minutes may exceed 60) or "1-02:03:04.50" → milliseconds.
+pub fn parse_cpu_time(value: &str) -> u64 {
+    let (days, clock) = value
+        .split_once('-')
+        .map(|(d, c)| (d.parse::<u64>().unwrap_or(0), c))
+        .unwrap_or((0, value));
+    let seconds = clock.split(':').fold(0.0, |total, part| {
+        total * 60.0 + part.replace(',', ".").parse::<f64>().unwrap_or(0.0)
+    });
+    days * 86_400_000 + (seconds * 1000.0).round() as u64
 }
 
 pub fn parse_elapsed(value: &str) -> u64 {
@@ -186,6 +201,12 @@ pub fn cwds(pids: &[u32]) -> HashMap<u32, String> {
 mod tests {
     use super::*;
     #[test]
+    fn cpu_time_formats() {
+        assert_eq!(parse_cpu_time("299:35.07"), 17_975_070);
+        assert_eq!(parse_cpu_time("0:00.01"), 10);
+        assert_eq!(parse_cpu_time("1-02:03:04.50"), 93_784_500);
+    }
+    #[test]
     fn elapsed_formats() {
         assert_eq!(parse_elapsed("01-17:57:08"), 151028);
         assert_eq!(parse_elapsed("09:50"), 590);
@@ -201,9 +222,9 @@ mod tests {
     #[test]
     fn process_table() {
         let rows = parse_table(
-            "    1     0     0  28.1   7904 Ss   Sun Sep 13 00:04:49 2026     14-20:19:10 /sbin/launchd\n\
-             4242  4200   501   0,5 183200 S+   Sat Sep 27 09:12:03 2026        01:02:03 node  /x/next  dev\n\
-             4243  4242   501   0.0      0 Z    Sat Sep 27 09:12:04 2026        01:02:02 (node)\n\
+            "    1     0     0  28.1   7904  15:37.11 Ss   Sun Sep 13 00:04:49 2026     14-20:19:10 /sbin/launchd\n\
+             4242  4200   501   0,5 183200   0:01.50 S+   Sat Sep 27 09:12:03 2026        01:02:03 node  /x/next  dev\n\
+             4243  4242   501   0.0      0   0:00.00 Z    Sat Sep 27 09:12:04 2026        01:02:02 (node)\n\
              bad line\n",
         );
         assert_eq!(rows.len(), 3);
@@ -214,6 +235,8 @@ mod tests {
         assert_eq!((node.pid, node.ppid, node.uid), (4242, 4200, 501));
         assert_eq!(node.cpu, 0.5);
         assert_eq!(node.rss_kb, 183200);
+        assert_eq!(node.cpu_time_ms, 1500);
+        assert_eq!(rows[0].cpu_time_ms, 937_110);
         assert_eq!(node.identity, "Sat Sep 27 09:12:03 2026");
         assert_eq!(node.command, "node /x/next dev");
     }

@@ -16,3 +16,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 libc = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
+# Already built by Tauri: quits applications the way ⌘Q does.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSRunningApplication"] }

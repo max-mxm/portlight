@@ -2,6 +2,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
+  ActivitySnapshot,
   Settings,
   Snapshot,
   StopResult,
@@ -15,6 +16,11 @@ export const stop = (id: string, force = false, scope: StopScope = "service") =>
 /** Stops a project group: processes with their launcher, containers with their Compose project. */
 export const stopServices = (ids: string[], force = false) =>
   invoke<StopResult>("stop_services", { ids, force });
+/** CPU and memory of the Mac and of each process, grouped by application. */
+export const sampleActivity = () => invoke<ActivitySnapshot>("sample_activity");
+/** Quits applications (like ⌘Q) and stops processes from the Processes view. */
+export const stopActivity = (ids: string[], force = false) =>
+  invoke<StopResult>("stop_activity", { ids, force });
 export const openPort = (id: string, port: number) =>
   invoke<void>("open_port", { id, port });
 export const openFolder = (id: string, editor: string | null = null) =>

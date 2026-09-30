@@ -25,6 +25,7 @@ export const en = {
     docker: "Docker",
     old: "To review",
     system: "System & tools",
+    processes: "Processes",
     history: "History",
     settings: "Settings",
   },
@@ -53,6 +54,11 @@ export const en = {
       title: "The Mac and its tools",
       description:
         "These services are protected. Quit their application to stop them.",
+    },
+    processes: {
+      title: "What your Mac is running",
+      description:
+        "CPU and memory of every application, measured live. Quit what you no longer need.",
     },
     history: {
       title: "Latest actions",
@@ -229,6 +235,81 @@ export const en = {
     projectSummary: (n: number) => `${n} service${n > 1 ? "s" : ""}`,
     stopGroup: "Stop the group",
   },
+  activity: {
+    label: "Processes of this Mac",
+    summary: "Load of this Mac",
+    cpu: "CPU",
+    cpuSplit: (programs: number, kernel: number) =>
+      `${programs} % programs · ${kernel} % kernel`,
+    unattributed: "macOS kernel (unattributed)",
+    unattributedDetail:
+      "kernel_task, interrupts, memory compression, brief processes",
+    unattributedHelp:
+      "CPU gauge minus the sum of every process: work that macOS does not attribute to any process. top shows the same gap.",
+    cpuScale: (cores: number) =>
+      `Share of the whole Mac: all ${cores} cores = 100 %. The processes add up to the CPU gauge.`,
+    memory: "Memory",
+    memoryNote: (total: string) => `used of ${total}`,
+    pressure: {
+      normal: "normal pressure",
+      warning: "high pressure",
+      critical: "critical pressure",
+    },
+    swap: "Swap",
+    swapNote: "written to disk",
+    processes: "Processes",
+    processesNote: (own: number) => `${own} are yours`,
+    filter: "Processes shown",
+    mine: "Mine",
+    all: "All",
+    search: "Search an app, a process, a PID…",
+    searchLabel: "Search a process",
+    columns: {
+      name: "PROCESS",
+      cpu: "CPU",
+      memory: "MEMORY",
+      uptime: "UP FOR",
+      actions: "ACTIONS",
+    },
+    sortBy: (column: string) => `Sort by ${column.toLowerCase()}`,
+    count: (n: number) => `${n} process${n > 1 ? "es" : ""}`,
+    approximate:
+      "Started since the last measure: CPU averaged by macOS until the next one.",
+    residentMemory:
+      "Resident memory: macOS gives the exact footprint only for your own processes.",
+    quit: "Quit",
+    stop: "Stop",
+    force: "Force",
+    protected: "Protected",
+    select: (name: string) => `Select ${name}`,
+    expand: (name: string) => `Show the processes of ${name}`,
+    selection: (n: number, memory: string, cpu: string) =>
+      `${n} selected · ${memory} · ${cpu} CPU`,
+    clearSelection: "Clear",
+    stopSelection: "Quit the selection",
+    forceSelection: "Force the selection",
+    showAll: (n: number) => `Show all ${n}`,
+    showLess: "Show the top only",
+    loadingTitle: "Measuring activity…",
+    loadingText: "The first figures arrive in a moment.",
+    noMatch: "No process matches.",
+    noMatchText: "Try an application name or a PID.",
+    webTitle: "Open the Mac app to see its processes.",
+    frozen: "Order held while you point at the list",
+    sampledAt: (time: string) => `Measured at ${time}`,
+    safety: "Apps quit like ⌘Q · macOS services protected",
+    confirmTitle: (n: number) =>
+      n === 1 ? "Quit this item?" : `Quit these ${n} items?`,
+    forceTitle: (n: number) =>
+      n === 1 ? "Force this item to stop?" : `Force these ${n} items to stop?`,
+    confirmText:
+      "Applications are asked to quit like ⌘Q: they can save your work first. Other processes receive a normal stop.",
+    forceText:
+      "A force stop interrupts them immediately. Unsaved work in these applications is lost.",
+    items: "Selected items",
+    confirm: "Quit",
+    confirmForce: "Force stop",
+  },
   palette: {
     title: "Quick actions",
     placeholder: "Search a service or free a port (:3000)…",
@@ -359,6 +440,7 @@ export const fr: Messages = {
     docker: "Docker",
     old: "À vérifier",
     system: "Système & outils",
+    processes: "Processus",
     history: "Historique",
     settings: "Réglages",
   },
@@ -387,6 +469,11 @@ export const fr: Messages = {
       title: "Le Mac et ses outils",
       description:
         "Ces services sont protégés. Fermez leur application pour les arrêter.",
+    },
+    processes: {
+      title: "Ce que votre Mac fait tourner",
+      description:
+        "Processeur et mémoire de chaque application, mesurés en direct. Fermez ce dont vous n’avez plus besoin.",
     },
     history: {
       title: "Les dernières actions",
@@ -563,6 +650,83 @@ export const fr: Messages = {
       "Portlight demandera à chaque processus et à son lanceur de se fermer normalement, puis arrêtera les conteneurs en un seul docker stop, avec les autres conteneurs de leur projet Compose. Leurs données et leur configuration seront conservées.",
     projectSummary: (n) => `${n} service${n > 1 ? "s" : ""}`,
     stopGroup: "Arrêter le groupe",
+  },
+  activity: {
+    label: "Processus de ce Mac",
+    summary: "Charge de ce Mac",
+    cpu: "Processeur",
+    cpuSplit: (programs, kernel) =>
+      `${programs} % programmes · ${kernel} % noyau`,
+    unattributed: "Noyau macOS (non attribué)",
+    unattributedDetail:
+      "kernel_task, interruptions, compression mémoire, processus éphémères",
+    unattributedHelp:
+      "Jauge Processeur moins la somme de tous les processus : le travail que macOS n’attribue à aucun processus. top présente le même écart.",
+    cpuScale: (cores) =>
+      `Part du Mac entier : les ${cores} cœurs = 100 %. Les processus s’additionnent pour donner la jauge Processeur.`,
+    memory: "Mémoire",
+    memoryNote: (total) => `utilisés sur ${total}`,
+    pressure: {
+      normal: "pression normale",
+      warning: "pression élevée",
+      critical: "pression critique",
+    },
+    swap: "Swap",
+    swapNote: "écrits sur le disque",
+    processes: "Processus",
+    processesNote: (own) => `dont ${own} à vous`,
+    filter: "Processus affichés",
+    mine: "Les miens",
+    all: "Tous",
+    search: "Rechercher une app, un processus, un PID…",
+    searchLabel: "Rechercher un processus",
+    columns: {
+      name: "PROCESSUS",
+      cpu: "PROCESSEUR",
+      memory: "MÉMOIRE",
+      uptime: "ACTIF DEPUIS",
+      actions: "ACTIONS",
+    },
+    sortBy: (column) => `Trier par ${column.toLowerCase()}`,
+    count: (n) => `${n} processus`,
+    approximate:
+      "Lancé depuis la dernière mesure : processeur moyenné par macOS jusqu’à la suivante.",
+    residentMemory:
+      "Mémoire résidente : macOS ne donne l’empreinte exacte que pour vos propres processus.",
+    quit: "Quitter",
+    stop: "Arrêter",
+    force: "Forcer",
+    protected: "Protégé",
+    select: (name) => `Sélectionner ${name}`,
+    expand: (name) => `Afficher les processus de ${name}`,
+    selection: (n, memory, cpu) =>
+      `${n} sélectionné${n > 1 ? "s" : ""} · ${memory} · ${cpu} de processeur`,
+    clearSelection: "Annuler",
+    stopSelection: "Quitter la sélection",
+    forceSelection: "Forcer la sélection",
+    showAll: (n) => `Tout afficher (${n})`,
+    showLess: "N’afficher que les premiers",
+    loadingTitle: "Mesure de l’activité…",
+    loadingText: "Les premiers chiffres arrivent dans un instant.",
+    noMatch: "Aucun processus ne correspond.",
+    noMatchText: "Essayez le nom d’une application ou un PID.",
+    webTitle: "Ouvrez l’application Mac pour voir ses processus.",
+    frozen: "Ordre figé pendant que vous pointez la liste",
+    sampledAt: (time) => `Mesuré à ${time}`,
+    safety: "Les apps se ferment comme avec ⌘Q · Services macOS protégés",
+    confirmTitle: (n) =>
+      n === 1 ? "Quitter cet élément ?" : `Quitter ces ${n} éléments ?`,
+    forceTitle: (n) =>
+      n === 1
+        ? "Forcer l’arrêt de cet élément ?"
+        : `Forcer l’arrêt de ces ${n} éléments ?`,
+    confirmText:
+      "Les applications reçoivent une demande de fermeture, comme avec ⌘Q : elles peuvent d’abord enregistrer votre travail. Les autres processus reçoivent un arrêt normal.",
+    forceText:
+      "L’arrêt forcé les interrompt immédiatement. Le travail non enregistré dans ces applications est perdu.",
+    items: "Éléments sélectionnés",
+    confirm: "Quitter",
+    confirmForce: "Forcer l’arrêt",
   },
   palette: {
     title: "Actions rapides",
