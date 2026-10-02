@@ -564,8 +564,27 @@ h1 {
   letter-spacing: -2px;
   white-space: nowrap;
 }
+/* Only the figure stays on one line: notes wrap in narrow windows. */
+.activity-stats .stat-note {
+  white-space: normal;
+}
 .activity-stats .stat.pressure {
   box-shadow: inset 0 -6px 0 var(--ink);
+}
+/* Sensors: a neutral band attached under the colored load gauges. */
+.load-stats {
+  margin-bottom: 0;
+}
+.sensor-stats {
+  border-top: 0;
+}
+.activity-stats.sensor-stats .stat {
+  border-color: var(--line);
+  color: var(--text);
+  background: var(--surface);
+}
+.activity-stats.sensor-stats .stat.pressure {
+  box-shadow: inset 0 -6px 0 var(--pink);
 }
 .filter-switch {
   display: flex;

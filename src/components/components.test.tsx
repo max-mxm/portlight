@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { activity } from "../test/activity";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { fixture } from "../test/fixture";
@@ -12,8 +12,16 @@ import { StopConfirmation } from "./StopConfirmation";
 import { I18nProvider } from "../i18n";
 import * as api from "../api";
 
+// Sensors changed by a test, applied to the next snapshots.
+const live = vi.hoisted(() => ({
+  sensors: {} as Partial<import("../types").Sensors>,
+}));
 vi.mock("../hooks/useActivity", () => ({
-  useActivity: () => ({ snapshot: activity(), error: "", refresh: vi.fn() }),
+  useActivity: () => {
+    const snapshot = activity();
+    Object.assign(snapshot.system.sensors, live.sensors);
+    return { snapshot, error: "", refresh: vi.fn() };
+  },
 }));
 vi.mock("../api", async (original) => ({
   ...(await original<typeof import("../api")>()),
@@ -369,5 +377,66 @@ describe("Processus", () => {
       ),
     );
     await vi.waitFor(() => expect(record).toHaveBeenCalled());
+  });
+
+  describe("capteurs", () => {
+    const panel = (language: "en" | "fr" = "en") =>
+      render(
+        <I18nProvider language={language}>
+          <ProcessesPanel
+            paused={false}
+            services={[]}
+            busy={null}
+            setBusy={vi.fn()}
+            setToast={vi.fn()}
+            record={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+    const band = (name: string) =>
+      screen.getByRole("region", { name }).textContent?.replace(/\u00a0/g, " ");
+    afterEach(() => {
+      live.sensors = {};
+    });
+
+    it("affiche température, ventilateur, GPU et puissance", () => {
+      panel();
+      const text = band("Sensors of this Mac");
+      expect(text).toContain("65 °C");
+      expect(text).toContain("CPU average · max 85 °C · normal");
+      expect(text).toContain("2,484");
+      expect(text).toContain("rpm · 37 % of max");
+      expect(text).toContain("7 %used · 53 °C");
+      expect(text).toContain("16.7 Wwhole Mac · on AC power");
+    });
+
+    it("signale le ralentissement thermique et un Mac sans ventilateur", () => {
+      live.sensors = { thermalPressure: "heavy", fans: [], onBattery: true };
+      panel("fr");
+      const text = band("Capteurs de ce Mac");
+      expect(text).toContain("moyenne processeur · max 85 °C · ralenti");
+      expect(text).toContain("pas de ventilateur sur ce Mac");
+      expect(text).toContain("16,7 WMac entier · sur batterie");
+      expect(
+        screen.getByTitle(/macOS réduit les performances/).className,
+      ).toContain("pressure");
+    });
+
+    it("n’invente rien sur un Mac qui n’expose pas ses capteurs", () => {
+      live.sensors = {
+        cpuCelsius: null,
+        cpuMaxCelsius: null,
+        gpuCelsius: null,
+        thermalPressure: null,
+        fans: null,
+        gpuPercent: null,
+        powerWatts: null,
+        onBattery: null,
+      };
+      panel();
+      const text = band("Sensors of this Mac") ?? "";
+      expect(text.match(/not exposed by this Mac/g)).toHaveLength(4);
+      expect(text).not.toContain("no fan");
+    });
   });
 });

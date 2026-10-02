@@ -8,6 +8,7 @@ mod monitor;
 mod process;
 mod project;
 mod scan;
+mod sensors;
 mod settings;
 mod tray;
 use actions::Scope;

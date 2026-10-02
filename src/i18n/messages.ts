@@ -259,6 +259,43 @@ export const en = {
     swapNote: "written to disk",
     processes: "Processes",
     processesNote: (own: number) => `${own} are yours`,
+    sensors: "Sensors of this Mac",
+    temperature: "Temperature",
+    temperatureNote: (max: string) => `CPU average · max\u00a0${max}`,
+    temperatureHelp:
+      "Average of the CPU core sensors, then the thermal state reported by macOS: from “slowed down” on, macOS reduces performance to cool the Mac.",
+    thermal: {
+      nominal: "normal",
+      moderate: "warm",
+      heavy: "slowed down",
+      critical: "critical",
+    },
+    fan: "Fan",
+    fanNote: (share: number | null, count: number) =>
+      [
+        "rpm",
+        share !== null && `${share} % of max`,
+        count > 1 && `${count} fans`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    fanHelp: (min: string, max: string) =>
+      `Fastest fan. Its speed ranges from ${min} to ${max} rpm; it stops when the Mac is cool.`,
+    fanOff: "Off",
+    fanOffNote: "stopped while the Mac is cool",
+    noFan: "no fan on this Mac",
+    gpu: "GPU",
+    gpuNote: (celsius: string | null) =>
+      celsius ? `used · ${celsius}` : "used",
+    gpuHelp:
+      "Utilization reported by the graphics driver, as in the GPU history of Activity Monitor.",
+    power: "Power",
+    powerNote: (battery: boolean | null) =>
+      battery === null
+        ? "whole Mac"
+        : `whole Mac · on ${battery ? "battery" : "AC power"}`,
+    powerHelp: "Power drawn by the whole Mac, as measured by its SMC.",
+    unavailable: "not exposed by this Mac",
     filter: "Processes shown",
     mine: "Mine",
     all: "All",
@@ -404,6 +441,8 @@ export const en = {
     megabytes: (n: number) => `${n} MB`,
     gigabytes: (n: string) => `${n} GB`,
     percent: (n: string) => `${n}%`,
+    celsius: (n: number) => `${n}\u00a0°C`,
+    watts: (n: string) => `${n}\u00a0W`,
   },
 };
 
@@ -675,6 +714,42 @@ export const fr: Messages = {
     swapNote: "écrits sur le disque",
     processes: "Processus",
     processesNote: (own) => `dont ${own} à vous`,
+    sensors: "Capteurs de ce Mac",
+    temperature: "Température",
+    temperatureNote: (max) => `moyenne processeur · max\u00a0${max}`,
+    temperatureHelp:
+      "Moyenne des capteurs des cœurs du processeur, puis l’état thermique donné par macOS : à partir de « ralenti », macOS réduit les performances pour refroidir le Mac.",
+    thermal: {
+      nominal: "normal",
+      moderate: "chaud",
+      heavy: "ralenti",
+      critical: "critique",
+    },
+    fan: "Ventilateur",
+    fanNote: (share, count) =>
+      [
+        "tr/min",
+        share !== null && `${share} % du max`,
+        count > 1 && `${count} ventilateurs`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    fanHelp: (min, max) =>
+      `Ventilateur le plus rapide. Sa vitesse va de ${min} à ${max} tr/min ; il s’arrête quand le Mac est frais.`,
+    fanOff: "Arrêté",
+    fanOffNote: "à l’arrêt tant que le Mac est frais",
+    noFan: "pas de ventilateur sur ce Mac",
+    gpu: "GPU",
+    gpuNote: (celsius) => (celsius ? `utilisé · ${celsius}` : "utilisé"),
+    gpuHelp:
+      "Taux d’utilisation donné par le pilote graphique, comme l’historique GPU du Moniteur d’activité.",
+    power: "Puissance",
+    powerNote: (battery) =>
+      battery === null
+        ? "Mac entier"
+        : `Mac entier · sur ${battery ? "batterie" : "secteur"}`,
+    powerHelp: "Puissance consommée par le Mac entier, mesurée par son SMC.",
+    unavailable: "non exposé par ce Mac",
     filter: "Processus affichés",
     mine: "Les miens",
     all: "Tous",
@@ -823,6 +898,8 @@ export const fr: Messages = {
     megabytes: (n) => `${n} Mo`,
     gigabytes: (n) => `${n} Go`,
     percent: (n) => `${n} %`,
+    celsius: (n) => `${n}\u00a0°C`,
+    watts: (n) => `${n}\u00a0W`,
   },
 };
 

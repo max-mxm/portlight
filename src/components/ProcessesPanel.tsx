@@ -3,7 +3,9 @@ import {
   AppWindow,
   ArrowDown,
   ChevronRight,
+  CircuitBoard,
   Cpu,
+  Fan,
   Hand,
   HardDrive,
   Layers,
@@ -12,7 +14,9 @@ import {
   Search,
   ShieldCheck,
   Square,
+  Thermometer,
   X,
+  Zap,
 } from "lucide-react";
 import * as api from "../api";
 import type { Activity, ProcessInfo, Service } from "../types";
@@ -155,6 +159,14 @@ export function ProcessesPanel({
   }
 
   const s = snapshot?.system;
+  const sensors = s?.sensors;
+  const thermal = sensors?.thermalPressure ?? null;
+  // The fastest fan is the one heard.
+  const fan = sensors?.fans?.length
+    ? sensors.fans.reduce((top, f) => (f.rpm > top.rpm ? f : top))
+    : null;
+  const celsius = (n: number) => t.units.celsius(Math.round(n));
+  const rpm = (n: number) => Math.round(n).toLocaleString(t.locale);
   const sortButton = (key: ActivitySort, label: string) => (
     <button
       className={`sort-heading ${sort === key ? "active" : ""}`}
@@ -279,7 +291,10 @@ export function ProcessesPanel({
 
   return (
     <>
-      <section className="stats activity-stats" aria-label={a.summary}>
+      <section
+        className="stats activity-stats load-stats"
+        aria-label={a.summary}
+      >
         <div className="stat" title={s ? a.cpuScale(s.cores) : undefined}>
           <span className="stat-label">
             {a.cpu}
@@ -332,6 +347,108 @@ export function ProcessesPanel({
             {s ? s.processCount : "—"}
             <span className="stat-note">
               {s ? a.processesNote(s.ownCount) : ""}
+            </span>
+          </div>
+        </div>
+      </section>
+      <section
+        className="stats activity-stats sensor-stats"
+        aria-label={a.sensors}
+      >
+        <div
+          className={`stat ${thermal && thermal !== "nominal" ? "pressure" : ""}`}
+          title={a.temperatureHelp}
+        >
+          <span className="stat-label">
+            {a.temperature}
+            <Thermometer aria-hidden="true" size={17} />
+          </span>
+          <div className="stat-value">
+            {sensors?.cpuCelsius != null ? celsius(sensors.cpuCelsius) : "—"}
+            <span className="stat-note">
+              {!sensors
+                ? ""
+                : sensors.cpuMaxCelsius != null
+                  ? [
+                      a.temperatureNote(celsius(sensors.cpuMaxCelsius)),
+                      thermal && a.thermal[thermal],
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : a.unavailable}
+            </span>
+          </div>
+        </div>
+        <div
+          className="stat"
+          title={fan ? a.fanHelp(rpm(fan.minRpm), rpm(fan.maxRpm)) : undefined}
+        >
+          <span className="stat-label">
+            {a.fan}
+            <Fan aria-hidden="true" size={17} />
+          </span>
+          <div className="stat-value">
+            {!fan ? "—" : fan.rpm < 1 ? a.fanOff : rpm(fan.rpm)}
+            <span className="stat-note">
+              {!sensors
+                ? ""
+                : !sensors.fans
+                  ? a.unavailable
+                  : !fan
+                    ? a.noFan
+                    : fan.rpm < 1
+                      ? a.fanOffNote
+                      : a.fanNote(
+                          fan.maxRpm > 0
+                            ? Math.round((fan.rpm * 100) / fan.maxRpm)
+                            : null,
+                          sensors.fans.length,
+                        )}
+            </span>
+          </div>
+        </div>
+        <div className="stat" title={a.gpuHelp}>
+          <span className="stat-label">
+            {a.gpu}
+            <CircuitBoard aria-hidden="true" size={17} />
+          </span>
+          <div className="stat-value">
+            {sensors?.gpuPercent != null
+              ? `${Math.round(sensors.gpuPercent)} %`
+              : "—"}
+            <span className="stat-note">
+              {!sensors
+                ? ""
+                : sensors.gpuPercent != null
+                  ? a.gpuNote(
+                      sensors.gpuCelsius != null
+                        ? celsius(sensors.gpuCelsius)
+                        : null,
+                    )
+                  : a.unavailable}
+            </span>
+          </div>
+        </div>
+        <div className="stat" title={a.powerHelp}>
+          <span className="stat-label">
+            {a.power}
+            <Zap aria-hidden="true" size={17} />
+          </span>
+          <div className="stat-value">
+            {sensors?.powerWatts != null
+              ? t.units.watts(
+                  sensors.powerWatts.toLocaleString(t.locale, {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  }),
+                )
+              : "—"}
+            <span className="stat-note">
+              {!sensors
+                ? ""
+                : sensors.powerWatts != null
+                  ? a.powerNote(sensors.onBattery)
+                  : a.unavailable}
             </span>
           </div>
         </div>

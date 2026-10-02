@@ -46,6 +46,16 @@ export const activity = (): ActivitySnapshot => ({
     swapTotal: 0,
     processCount: 4,
     ownCount: 3,
+    sensors: {
+      cpuCelsius: 64.9,
+      cpuMaxCelsius: 84.6,
+      gpuCelsius: 52.8,
+      thermalPressure: "nominal",
+      fans: [{ rpm: 2484, minRpm: 2317, maxRpm: 6800 }],
+      gpuPercent: 7,
+      powerWatts: 16.7,
+      onBattery: false,
+    },
   },
   apps: [
     app("Chrome", [
