@@ -1,5 +1,5 @@
-//! Live activity of the Mac for the Processes view: system load and each
-//! process's CPU and memory, grouped by application.
+//! Live activity of the Mac for the Processes view: system load, sensors
+//! and each process's CPU and memory, grouped by application.
 //!
 //! CPU is measured like top: CPU time consumed between two samples, per
 //! process. macOS only exposes it, and the memory footprint, for the user's
@@ -12,6 +12,7 @@ use crate::{
     model::ProcessSummary,
     process::{self, ProcessEntry},
     scan,
+    sensors::{self, Sensors},
 };
 use serde::Serialize;
 use std::{
@@ -46,6 +47,8 @@ pub struct SystemStats {
     pub swap_total: u64,
     pub process_count: usize,
     pub own_count: usize,
+    /// Temperatures, fans, GPU and power.
+    pub sensors: Sensors,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -225,6 +228,7 @@ fn system(
         swap_total: swap.map(|s| s.xsu_total).unwrap_or(0),
         process_count: processes,
         own_count: own,
+        sensors: sensors::read(),
     }
 }
 

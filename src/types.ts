@@ -88,6 +88,28 @@ export interface SystemStats {
   swapTotal: number;
   processCount: number;
   ownCount: number;
+  sensors: Sensors;
+}
+export type ThermalPressure = "nominal" | "moderate" | "heavy" | "critical";
+export interface Fan {
+  rpm: number;
+  minRpm: number;
+  maxRpm: number;
+}
+/** Read from the SMC and the I/O Registry; null when the Mac does not expose it. */
+export interface Sensors {
+  /** Average of the CPU core sensors, °C. */
+  cpuCelsius: number | null;
+  cpuMaxCelsius: number | null;
+  gpuCelsius: number | null;
+  /** From "heavy" on, macOS slows the Mac down to cool it. */
+  thermalPressure: ThermalPressure | null;
+  /** Empty on a Mac without fan; null when the SMC cannot tell. */
+  fans: Fan[] | null;
+  gpuPercent: number | null;
+  /** Power drawn by the whole Mac, watts. */
+  powerWatts: number | null;
+  onBattery: boolean | null;
 }
 export interface ProcessInfo {
   id: string;
