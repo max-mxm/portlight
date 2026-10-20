@@ -16,6 +16,8 @@ pub struct Settings {
     pub editor: Option<String>,
     /// Interface language: "en" (default) or "fr".
     pub language: String,
+    /// Compact lists instead of the programme guide and the CPU history.
+    pub simple_view: bool,
 }
 
 impl Default for Settings {
@@ -26,6 +28,7 @@ impl Default for Settings {
             dev_binaries: vec![],
             editor: None,
             language: "en".into(),
+            simple_view: false,
         }
     }
 }
@@ -121,6 +124,7 @@ pub fn validate(settings: Settings) -> Result<Settings, String> {
         dev_binaries: binaries,
         editor: settings.editor,
         language: settings.language,
+        simple_view: settings.simple_view,
     })
 }
 
@@ -149,8 +153,10 @@ mod tests {
             dev_binaries: vec!["Rails ".into(), "mysqld".into()],
             editor: None,
             language: "fr".into(),
+            simple_view: true,
         })
         .unwrap();
+        assert!(settings.simple_view, "the view choice is kept");
         assert_eq!(settings.project_roots, vec!["~/code"]);
         assert_eq!(settings.dev_binaries, vec!["rails", "mysqld"]);
         for bad in ["com.docker.backend", "launchd", "node;rm"] {
@@ -181,6 +187,7 @@ mod tests {
         let settings: Settings = serde_json::from_str(r#"{"reviewHours":12}"#).unwrap();
         assert_eq!(settings.review_hours, 12);
         assert_eq!(settings.language, "en", "English by default");
+        assert!(!settings.simple_view, "programme guide by default");
         assert!(settings.project_roots.is_empty());
     }
 }

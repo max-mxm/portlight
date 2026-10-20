@@ -1,4 +1,4 @@
-import { Laptop, Monitor, Moon, Radio, Search, Sun } from "lucide-react";
+import { Laptop, Monitor, Moon, Search, Sun } from "lucide-react";
 import type { Service, ThemePreference, View } from "../types";
 import { native } from "../api";
 import { views } from "../navigation";
@@ -26,6 +26,26 @@ const themes = [
   { id: "light", icon: Sun },
   { id: "dark", icon: Moon },
 ] as const;
+// The app icon, drawn on the same grid as the menu bar icon (src-tauri/tray.svg).
+function BrandMark() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 36 36">
+      <g transform="translate(1.5 1.5)">
+        <rect className="brand-violet" x="1" y="1" width="31" height="31" />
+        <g className="brand-white">
+          <path d="M4 5L12 10V13L4 18Z" />
+          <path d="M29 5L21 10V13L29 18Z" />
+          <rect x="13" y="10" width="7" height="3" />
+          <path d="M14 14H19L19.5 23H13.5Z" />
+        </g>
+        <g className="brand-mint">
+          <rect x="14" y="7" width="5" height="2" />
+          <rect x="11" y="24" width="11" height="5" />
+        </g>
+      </g>
+    </svg>
+  );
+}
 export function Sidebar({
   view,
   project,
@@ -50,7 +70,7 @@ export function Sidebar({
       {native && <div className="titlebar-space" data-tauri-drag-region />}
       <div className="brand">
         <div className="brand-mark">
-          <Radio aria-hidden="true" size={22} />
+          <BrandMark />
         </div>
         <div>
           Portlight<span>{t.sidebar.tagline}</span>

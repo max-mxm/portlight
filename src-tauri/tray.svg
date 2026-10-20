@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <!-- Menu bar template: the app icon in one colour, the lighthouse cut out of the flat square. -->
+  <defs>
+    <mask id="lighthouse" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36">
+      <rect fill="#fff" x="1" y="1" width="31" height="31"/>
+      <g fill="#000">
+        <path d="M4 5L12 10V13L4 18Z"/>
+        <path d="M29 5L21 10V13L29 18Z"/>
+        <rect x="14" y="7" width="5" height="2"/>
+        <rect x="13" y="10" width="7" height="3"/>
+        <path d="M14 14H19L19.5 23H13.5Z"/>
+        <rect x="11" y="24" width="11" height="5"/>
+      </g>
+    </mask>
+  </defs>
+  <rect width="36" height="36" mask="url(#lighthouse)" transform="translate(1.5 1.5)"/>
+</svg>

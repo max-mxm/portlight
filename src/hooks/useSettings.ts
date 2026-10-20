@@ -10,6 +10,7 @@ export const defaultSettings = (): Settings => ({
   devBinaries: [],
   editor: null,
   language: cachedLanguage(),
+  simpleView: false,
 });
 
 /** Settings stored by the backend, shared with the scan. */

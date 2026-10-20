@@ -4,7 +4,7 @@ Les dépendances JavaScript et Rust sont déclarées dans `package.json`, `packa
 
 ## Polices embarquées
 
-- **Space Grotesk**, distribuée via `@fontsource-variable/space-grotesk` : [SIL Open Font License 1.1](docs/licenses/space-grotesk-OFL.txt).
+- **Archivo**, distribuée via `@fontsource-variable/archivo` : [SIL Open Font License 1.1](docs/licenses/archivo-OFL.txt).
 - **JetBrains Mono**, distribuée via `@fontsource-variable/jetbrains-mono` : [SIL Open Font License 1.1](docs/licenses/jetbrains-mono-OFL.txt).
 
 Les textes complets, incluant les avis de copyright, sont conservés dans `docs/licenses/`.

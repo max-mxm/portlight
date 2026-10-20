@@ -53,6 +53,8 @@ export interface Settings {
   devBinaries: string[];
   editor: string | null;
   language: "en" | "fr";
+  /** Compact lists instead of the programme guide and the CPU history. */
+  simpleView: boolean;
 }
 /** service: the listener only · group: its launcher and descendants · compose: the whole Compose project · project: every stoppable service of a project group */
 export type StopScope = "service" | "group" | "compose" | "project";

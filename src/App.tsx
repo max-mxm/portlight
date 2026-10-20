@@ -3,6 +3,7 @@ import {
   Activity as ActivityIcon,
   Command,
   Laptop,
+  ListCollapse,
   Pause,
   Play,
   RefreshCw,
@@ -20,7 +21,7 @@ import { useShortcuts } from "./hooks/useShortcuts";
 import { useTheme } from "./hooks/useTheme";
 import { useSettings } from "./hooks/useSettings";
 import { Sidebar } from "./components/Sidebar";
-import { Overview } from "./components/Overview";
+import { ViewChips } from "./components/ViewChips";
 import { ServicesPanel } from "./components/ServicesPanel";
 import { ProcessesPanel } from "./components/ProcessesPanel";
 import { ActivityPanel } from "./components/ActivityPanel";
@@ -67,13 +68,20 @@ export default function App() {
       setToast(String(e));
     }
   }
+  const simple = settings.simpleView;
+  async function setSimple(simpleView: boolean) {
+    try {
+      await saveSettings({ ...settings, simpleView });
+    } catch (e) {
+      setToast(String(e));
+    }
+  }
   const services = useMemo(() => snapshot?.services ?? [], [snapshot]);
   const devServices = services.filter(
     (s) => s.kind === "process" || s.kind === "docker",
   );
   const oldServices = services.filter((s) => isOld(s, reviewHours));
   const projects = [...new Set(devServices.map((s) => s.project))].sort();
-  const ports = new Set(devServices.flatMap((s) => s.ports));
   useShortcuts({
     palette: () => {
       setPalette((p) => !p);
@@ -254,6 +262,15 @@ export default function App() {
                       : t.topbar.live}
               </span>
               <button
+                className="view-toggle"
+                aria-pressed={simple}
+                title={t.topbar.simpleViewHelp}
+                onClick={() => void setSimple(!simple)}
+              >
+                <ListCollapse aria-hidden="true" size={15} />
+                {t.topbar.simpleView}
+              </button>
+              <button
                 className="icon-button"
                 aria-label={paused ? t.topbar.resume : t.topbar.pause}
                 onClick={() => setPaused(!paused)}
@@ -266,10 +283,9 @@ export default function App() {
               </button>
             </div>
           </header>
-          <div className="main-content">
+          <div className={`main-content ${simple ? "simple" : ""}`}>
             <section className="page-heading">
               <div>
-                <div className="eyebrow">{t.page.eyebrow}</div>
                 <h1>{page.title}</h1>
                 <p>{page.description}</p>
               </div>
@@ -318,24 +334,21 @@ export default function App() {
             ))}
             {view === "processes" && (
               <ProcessesPanel
-                {...{ paused, services, busy, setBusy, setToast, record }}
+                {...{
+                  paused,
+                  services,
+                  busy,
+                  setBusy,
+                  setToast,
+                  record,
+                  simple,
+                }}
               />
             )}
             {view !== "history" &&
               view !== "settings" &&
               view !== "processes" && (
                 <>
-                  <Overview
-                    {...{
-                      snapshot,
-                      ports,
-                      services,
-                      oldServices,
-                      view,
-                      navigate,
-                      reviewHours,
-                    }}
-                  />
                   <ServicesPanel
                     {...{
                       project,
@@ -355,18 +368,22 @@ export default function App() {
                       setConfirm,
                       open,
                       reviewHours,
+                      simple,
                     }}
+                    filters={
+                      view !== "system" && (
+                        <ViewChips
+                          {...{
+                            view,
+                            devServices,
+                            oldServices,
+                            navigate,
+                            reviewHours,
+                          }}
+                        />
+                      )
+                    }
                   />
-                  <div className="access-legend">
-                    <span>
-                      <span className="dot green" />
-                      {t.page.legendLocal}
-                    </span>
-                    <span>
-                      <span className="dot amber" />
-                      {t.page.legendNetwork}
-                    </span>
-                  </div>
                 </>
               )}
             {view === "history" && (
@@ -375,6 +392,7 @@ export default function App() {
             {view === "settings" && (
               <SettingsPanel
                 settings={settings}
+                setSimple={(value) => void setSimple(value)}
                 setLanguage={(language) => void setLanguage(language)}
                 save={async (next) => {
                   const saved = await saveSettings(next);
