@@ -13,12 +13,13 @@ import {
   Square,
   X,
 } from "lucide-react";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import type { Service, Snapshot, StopRequest, View } from "../types";
 import { ServiceRow } from "./ServiceRow";
 import { useT } from "../i18n";
 import { useCollapsed } from "../hooks/useCollapsed";
 import { resistantKey } from "../services";
+import { clockLabel, guideHours, guideTicks, thresholdAt } from "../guide";
 interface Props {
   project: string;
   view: View;
@@ -37,6 +38,9 @@ interface Props {
   setConfirm: (value: StopRequest) => void;
   open: (s: Service, port: number) => Promise<void>;
   reviewHours: number;
+  simple: boolean;
+  /** View chips shown in place of the panel title. */
+  filters?: ReactNode;
 }
 export function ServicesPanel({
   project,
@@ -56,12 +60,21 @@ export function ServicesPanel({
   setConfirm,
   open,
   reviewHours,
+  simple,
+  filters,
 }: Props) {
   const t = useT();
   const l = t.services;
   const { collapsed, toggle, setAll } = useCollapsed();
   const names = groups.map(([name]) => name);
   const allCollapsed = names.length > 0 && names.every((n) => collapsed.has(n));
+  const g = t.guide;
+  const scannedAt = snapshot?.scannedAt ?? 0;
+  const hours = guideHours(reviewHours);
+  const ticks = scannedAt ? guideTicks(scannedAt, hours) : [];
+  const time = (at: number) => clockLabel(at, scannedAt, t.locale);
+  // The last labels would run under the now chip.
+  const labelled = ticks.filter(({ x }) => x < 0.86).length;
   function stopGroup(name: string, items: Service[]) {
     const force = resistant.has(resistantKey("project", name));
     // A force stop only concerns the processes: containers are never forced.
@@ -79,10 +92,19 @@ export function ServicesPanel({
   return (
     <section className="services-panel" aria-label={l.label}>
       <div className="panel-toolbar">
-        <div className="panel-title">
-          <h2>{project || (view === "all" ? l.running : t.views[view])}</h2>
-          <span className="count-badge">{visible.length}</span>
-        </div>
+        {filters ? (
+          <div className="panel-title">
+            <h2 className="sr-only">
+              {project || (view === "all" ? l.running : t.views[view])}
+            </h2>
+            {filters}
+          </div>
+        ) : (
+          <div className="panel-title">
+            <h2>{project || (view === "all" ? l.running : t.views[view])}</h2>
+            <span className="count-badge">{visible.length}</span>
+          </div>
+        )}
         <div className="toolbar-controls">
           {names.length > 1 && (
             <button
@@ -130,11 +152,52 @@ export function ServicesPanel({
         </div>
       </div>
       <div role="table" aria-label={l.table}>
-        <div className="table-heading" role="row">
-          <span role="columnheader">{l.columns.service}</span>
-          <span role="columnheader">{l.columns.ports}</span>
-          <span role="columnheader">{l.columns.uptime}</span>
-          <span role="columnheader">{l.columns.access}</span>
+        <div
+          className={`table-heading ${simple ? "simple" : "guide"}`}
+          role="row"
+        >
+          <span role="columnheader">{g.port}</span>
+          <span role="columnheader">{g.service}</span>
+          {simple ? (
+            <span role="columnheader">{g.up}</span>
+          ) : (
+            <div role="columnheader" className="axis">
+              <span className="sr-only">{g.timeline(hours)}</span>
+              {ticks.map(({ at, x }, i) => (
+                <span
+                  key={at}
+                  className={`tick ${i === 0 ? "first" : ""}`}
+                  aria-hidden="true"
+                  style={{ left: `${x * 100}%` }}
+                >
+                  {i < labelled && <span>{time(at)}</span>}
+                </span>
+              ))}
+              <span
+                className="threshold-line"
+                aria-hidden="true"
+                style={{ left: `${thresholdAt(reviewHours, hours) * 100}%` }}
+              >
+                <span title={g.threshold(reviewHours)}>
+                  <span className="review-key" />
+                  <span className="threshold-text">
+                    {g.threshold(reviewHours)}
+                  </span>
+                  <span className="threshold-short">
+                    {g.thresholdShort(reviewHours)}
+                  </span>
+                </span>
+              </span>
+              {scannedAt > 0 && (
+                <span className="now-line" aria-hidden="true">
+                  <span>
+                    <span className="now-full">{g.now(time(scannedAt))}</span>
+                    <span className="now-short">{time(scannedAt)}</span>
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
           <span role="columnheader">{l.columns.actions}</span>
         </div>
         {loading && !snapshot ? (
@@ -191,6 +254,10 @@ export function ServicesPanel({
                       disabled={busy !== null}
                       onDetails={() => setDetails(s)}
                       reviewHours={reviewHours}
+                      simple={simple}
+                      hours={hours}
+                      ticks={ticks.map((tick) => tick.x)}
+                      scannedAt={scannedAt}
                       onStop={() =>
                         setConfirm({
                           service: s,
@@ -241,6 +308,59 @@ export function ServicesPanel({
           </div>
         )}
       </div>
+      {groups.length > 0 && (
+        <div className="guide-legend">
+          {simple ? (
+            <>
+              <span>
+                <i className="key server" />
+                {g.legendServer}
+              </span>
+              <span>
+                <i className="key container" />
+                {g.legendContainer}
+              </span>
+              <span>{g.ageLegend(reviewHours)}</span>
+              <span>
+                <i className="key review" />
+                {g.legendReview(reviewHours)}
+              </span>
+            </>
+          ) : (
+            <>
+              <span>
+                <i className="key key-block server" />
+                {g.legendServer}
+              </span>
+              <span>
+                <i className="key key-block container" />
+                {g.legendContainer}
+              </span>
+              <span>
+                <i className="key review" />
+                {g.legendReview(reviewHours)}
+              </span>
+              <span>
+                <i className="key now" />
+                {g.legendNow}
+              </span>
+              <span className="mono legend-window">{g.window(hours)}</span>
+            </>
+          )}
+          {!simple && (
+            <>
+              <span>
+                <span className="dot green" />
+                {t.page.legendLocal}
+              </span>
+              <span>
+                <span className="dot network" />
+                {t.page.legendNetwork}
+              </span>
+            </>
+          )}
+        </div>
+      )}
       <div className="panel-footer">
         <span>
           <ShieldCheck aria-hidden="true" size={14} /> {l.safety}

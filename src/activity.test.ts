@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { activity } from "./test/activity";
-import { activityRows, allRows, holdOrder, selectionTotals } from "./activity";
+import {
+  activityRows,
+  addSample,
+  allRows,
+  holdOrder,
+  selectionTotals,
+} from "./activity";
 
 describe("Vue Processus", () => {
   it("filtre ses processus et trie les plus lourds en premier", () => {
@@ -37,5 +43,12 @@ describe("Vue Processus", () => {
       new Set(["app:/Applications/Chrome.app", "pid:20"]),
     );
     expect(totals).toEqual({ count: 2, memoryBytes: 850, cpuPercent: 65 });
+  });
+  it("garde deux minutes de processeur, par ligne", () => {
+    let history = addSample([], activity());
+    expect(history[0].programs).toBe(30);
+    expect(history[0].rows["pid:11"]).toBe(20);
+    for (let i = 0; i < 70; i++) history = addSample(history, activity());
+    expect(history).toHaveLength(60);
   });
 });

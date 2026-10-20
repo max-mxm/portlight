@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-20T16:00:00+02:00",
+  "title": "Design System: Portlight",
+  "extensions": {
+    "colorMeta": {
+      "violet": { "role": "primary", "displayName": "Monday Violet", "canonical": "oklch(58.7% 0.228 276.7)", "tonalRamp": ["#070031", "#1b016e", "#3202b3", "#473cd9", "#6263fe", "#8692ff", "#b5bfff", "#eaeefe"] },
+      "mint": { "role": "secondary", "displayName": "Monday Mint", "canonical": "oklch(73.6% 0.184 154.3)", "tonalRamp": ["#001005", "#012d15", "#004d28", "#05703d", "#069653", "#05bd6a", "#41e68c", "#c6ffd7"] },
+      "yellow": { "role": "tertiary", "displayName": "Monday Yellow (status only)", "canonical": "oklch(86.5% 0.177 90.4)", "tonalRamp": ["#100a00", "#2e2300", "#4f3d01", "#735a03", "#987907", "#c09901", "#edbe06", "#ffeebf"] },
+      "pink": { "role": "tertiary", "displayName": "Monday Pink (stop only)", "canonical": "oklch(64.1% 0.239 14.6)", "tonalRamp": ["#1e0004", "#4a0114", "#7a0226", "#af033a", "#e7044f", "#fe6078", "#fea9b0", "#ffe8e9"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(19.3% 0.040 279.8)", "tonalRamp": ["#08091b", "#202237", "#3b3e55", "#595b74", "#787b95", "#999cb8", "#bec2de", "#ebedff"] },
+      "ground": { "role": "neutral", "displayName": "Night Navy", "canonical": "oklch(18.3% 0.041 277.3)", "tonalRamp": ["#07091c", "#1f2238", "#3a3e55", "#585c75", "#777b96", "#989db8", "#bdc2df", "#eaedfe"] },
+      "sidebar": { "role": "neutral", "displayName": "Rail Navy", "canonical": "oklch(23.3% 0.048 276.8)", "tonalRamp": ["#07081f", "#1e213b", "#393d59", "#565b79", "#757b9a", "#969cbd", "#bcc2e4", "#eaeefe"] },
+      "ground-light": { "role": "neutral", "displayName": "Cream Paper", "canonical": "oklch(97.0% 0.007 97.4)", "tonalRamp": ["#0c0b08", "#252420", "#41403c", "#5e5e59", "#7e7d79", "#9f9e9a", "#c5c4bf", "#efeeea"] },
+      "project-cyan": { "role": "neutral", "displayName": "Project Cyan", "canonical": "oklch(78.2% 0.133 194.8)", "tonalRamp": ["#000e0e", "#012a2a", "#044a4a", "#026c6c", "#088f8f", "#00b5b5", "#2bdfde", "#b4fffe"] },
+      "project-lavender": { "role": "neutral", "displayName": "Project Lavender", "canonical": "oklch(73.6% 0.140 282.4)", "tonalRamp": ["#0a002f", "#210a64", "#392e86", "#544fa9", "#7270cd", "#9292f3", "#bbbdff", "#ebedff"] },
+      "heat-4": { "role": "secondary", "displayName": "Heat Ramp (dark, navy to mint)", "canonical": "#00ca72", "tonalRamp": ["#171a3c", "#0f3b31", "#0b6a4b", "#009a59", "#00ca72"] },
+      "heat-4-light": { "role": "secondary", "displayName": "Heat Ramp (light, gray to deep mint)", "canonical": "#007f45", "tonalRamp": ["#e6e6eb", "#bfeed6", "#7ddcaa", "#1fb36f", "#007f45"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page title only; width 84% via font-stretch." },
+      "display-simple": { "displayName": "Display (simplified view)", "purpose": "Page title in the simplified view, subtitle hidden." },
+      "brand": { "displayName": "Brand", "purpose": "The Portlight wordmark in the rail." },
+      "headline": { "displayName": "Headline", "purpose": "Panel titles." },
+      "dialog-title": { "displayName": "Dialog title", "purpose": "White title on the violet dialog band." },
+      "group-name": { "displayName": "Group name", "purpose": "Project group rows; width 85%." },
+      "title": { "displayName": "Title", "purpose": "Service and application names; width 92%." },
+      "body": { "displayName": "Body", "purpose": "Subtitles, notices, empty states." },
+      "body-control": { "displayName": "Control", "purpose": "Chips, toggles, buttons." },
+      "body-meta": { "displayName": "Meta", "purpose": "Row metadata: description, start time, access." },
+      "label": { "displayName": "Label", "purpose": "Uppercase column headings and figure captions." },
+      "mono-ident": { "displayName": "Mono ident", "purpose": "Port idents (14px) and CPU idents (12.5px)." },
+      "mono-figure": { "displayName": "Mono figure", "purpose": "Figure-strip values in the simplified Processes view." },
+      "mono-value": { "displayName": "Mono value", "purpose": "CPU, memory, PIDs, field inputs." },
+      "mono-axis": { "displayName": "Mono axis", "purpose": "Tick hours, now chip, durations, commands." }
+    },
+    "shadows": [
+      { "name": "inset-server-edge", "value": "inset 2px 0 0 var(--mint)", "purpose": "Edge, not depth: the mint left edge of a server block and its legend key." },
+      { "name": "inset-chip-pressed", "value": "inset 0 -3px 0 var(--accent)", "purpose": "Edge, not depth: violet underline of a pressed filter chip or segment." },
+      { "name": "inset-row-selected", "value": "inset 5px 0 0 var(--blue)", "purpose": "Edge, not depth: violet left bar of a selected process row." },
+      { "name": "inset-ink-edge", "value": "inset 0 0 0 1px var(--ink)", "purpose": "Light mode only: 1px ink edge on yellow idents, blocks and keys." },
+      { "name": "inset-network-square", "value": "inset 0 0 0 1.5px currentColor", "purpose": "The outlined square for network exposure." }
+    ],
+    "motion": [
+      { "name": "state-120", "value": "120ms (background-color, color, box-shadow)", "purpose": "Default button state transition; no layout motion on hover." },
+      { "name": "chevron-120", "value": "transform 120ms", "purpose": "Group fold chevron rotating 90deg." },
+      { "name": "spin", "value": "1.2s linear infinite", "purpose": "Refresh icon while scanning." },
+      { "name": "reduced-motion", "value": "animation: none; transition: none", "purpose": "prefers-reduced-motion disables every animation and transition." }
+    ],
+    "breakpoints": [
+      { "name": "wide", "value": "min-width 1450px" },
+      { "name": "toolbar-wrap", "value": "max-width 1180px" },
+      { "name": "compact", "value": "max-width 1050px" },
+      { "name": "narrow", "value": "max-width 900px" },
+      { "name": "stacked", "value": "max-width 680px" },
+      { "name": "track-label", "value": "container max-width 260px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Port Ident",
+      "kind": "custom",
+      "refersTo": "ident-server",
+      "description": "The channel number: a square tile in the service's tone (mint server, violet container, yellow past threshold, gray tool).",
+      "html": "<div class=\"ds-row\"><button class=\"ds-ident ds-server\">5173</button><button class=\"ds-ident ds-container\">5432</button><button class=\"ds-ident ds-review\">3000</button><span class=\"ds-ident ds-tool\">7000</span></div>",
+      "css": ".ds-row { display: flex; gap: 8px; } .ds-ident { display: inline-grid; place-items: center; min-width: 56px; height: 34px; padding: 0 6px; border: 0; border-radius: 0; font-family: \"JetBrains Mono Variable\", monospace; font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700; cursor: pointer; } .ds-server { background: var(--mint, #00ca72); color: var(--ink, #111226); } .ds-container { background: var(--blue, #6161ff); color: #fff; } .ds-review { background: var(--yellow, #ffcc00); color: var(--ink, #111226); } .ds-tool { background: var(--tool-block, #23264a); color: var(--text, #f4f3ff); cursor: default; } button.ds-ident:hover { text-decoration: underline; text-underline-offset: 3px; } .ds-ident:focus-visible { outline: 3px solid var(--focus, #b7b7ff); outline-offset: 3px; }"
+    },
+    {
+      "name": "Programme Track",
+      "kind": "custom",
+      "refersTo": "block-server",
+      "description": "A service lifetime on the shared axis: ticks, threshold line, block and the 2px violet now line.",
+      "html": "<div class=\"ds-track\"><span class=\"ds-tick\" style=\"left:20%\"></span><span class=\"ds-tick\" style=\"left:60%\"></span><span class=\"ds-threshold\" style=\"left:20%\"></span><span class=\"ds-block ds-block-server\" style=\"left:45%\">vite <span class=\"ds-mono\">6 h 24</span></span><span class=\"ds-now\"></span></div><div class=\"ds-track\"><span class=\"ds-threshold\" style=\"left:20%\"></span><span class=\"ds-block ds-block-review\" style=\"left:0\"><i class=\"ds-arrow\"></i><span class=\"ds-mono\">05:26 AM 10 h 12 · past 8 h</span></span><span class=\"ds-now\"></span></div>",
+      "css": ".ds-track { position: relative; height: 62px; background: var(--surface, #0e1024); border-bottom: 1px solid var(--rule, #23264a); } .ds-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule, #23264a); } .ds-threshold { position: absolute; top: 0; bottom: 0; width: 1px; z-index: 2; background: var(--yellow, #ffcc00); } .ds-now { position: absolute; top: 0; right: 0; bottom: 0; width: 2px; z-index: 3; background: var(--now, #6161ff); } .ds-block { position: absolute; top: 50%; right: 0; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 9px; overflow: hidden; border-radius: 0; font-family: \"Archivo Variable\", sans-serif; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--text, #f4f3ff); } .ds-block-server { background: var(--server-block, #0f3b31); box-shadow: inset 2px 0 0 var(--mint, #00ca72); } .ds-block-review { background: var(--yellow, #ffcc00); color: var(--ink, #111226); } .ds-mono { font-family: \"JetBrains Mono Variable\", monospace; font-size: 11.5px; } .ds-arrow { width: 0; height: 0; border-block: 5px solid transparent; border-right: 7px solid currentColor; }"
+    },
+    {
+      "name": "Stop Button",
+      "kind": "button",
+      "refersTo": "stop-button",
+      "description": "Neutral at rest with a pink stop square; fills pink with ink text on hover.",
+      "html": "<button class=\"ds-stop\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" fill=\"currentColor\"/></svg>Stop</button>",
+      "css": ".ds-stop { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; min-width: 83px; padding: 6px 8px; border: 1px solid var(--line, #2b2f52); border-radius: 0; background: var(--surface, #0e1024); color: var(--text, #f4f3ff); font-family: \"Archivo Variable\", sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-stop svg { color: var(--pink, #fb275d); } .ds-stop:hover { background: var(--pink, #fb275d); color: var(--ink, #111226); border-color: var(--ink, #111226); } .ds-stop:focus-visible { outline: 3px solid var(--focus, #b7b7ff); outline-offset: 3px; }"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Violet with white text and an ink edge; used for Save in settings.",
+      "html": "<button class=\"ds-primary\">Save</button>",
+      "css": ".ds-primary { min-height: 44px; padding: 11px 22px; border: 1px solid var(--ink, #111226); border-radius: 0; background: var(--blue, #6161ff); color: #fff; font-family: \"Archivo Variable\", sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background-color 120ms; } .ds-primary:hover { background: #4b4be6; } .ds-primary:focus-visible { outline: 3px solid var(--focus, #b7b7ff); outline-offset: 3px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "The confirm-stop action in dialogs: pink, ink text, ink edge.",
+      "html": "<button class=\"ds-danger\">Stop</button>",
+      "css": ".ds-danger { min-height: 44px; padding: 11px 18px; border: 1px solid var(--ink, #111226); border-radius: 0; background: var(--pink, #fb275d); color: var(--ink, #111226); font-family: \"Archivo Variable\", sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color 120ms; } .ds-danger:hover { background: #ff658d; } .ds-danger:focus-visible { outline: 3px solid var(--focus, #b7b7ff); outline-offset: 3px; }"
+    },
+    {
+      "name": "Filter Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Views as chips with mono counts; pressed takes a violet underline; To review carries a yellow key.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\" aria-pressed=\"true\">All <span class=\"ds-count\">6</span></button><button class=\"ds-chip\" aria-pressed=\"false\">Servers <span class=\"ds-count\">4</span></button><button class=\"ds-chip\" aria-pressed=\"false\"><span class=\"ds-key\"></span>To review <span class=\"ds-count\">2</span></button></div>",
+      "css": ".ds-chips { display: flex; gap: 8px; } .ds-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; border: 1px solid var(--line, #2b2f52); border-radius: 0; background: transparent; color: var(--muted, #a9acc9); font-family: \"Archivo Variable\", sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; } .ds-chip:hover { color: var(--text, #f4f3ff); border-color: var(--muted, #a9acc9); } .ds-chip[aria-pressed=\"true\"] { border-color: var(--text, #f4f3ff); color: var(--text, #f4f3ff); box-shadow: inset 0 -3px 0 var(--accent, #6161ff); } .ds-chip:focus-visible { outline: 3px solid var(--focus, #b7b7ff); outline-offset: 3px; } .ds-count { font-family: \"JetBrains Mono Variable\", monospace; font-variant-numeric: tabular-nums; color: var(--text, #f4f3ff); } .ds-key { width: 8px; height: 8px; background: var(--yellow, #ffcc00); }"
+    },
+    {
+      "name": "Search Box",
+      "kind": "input",
+      "refersTo": "search-box",
+      "description": "Square 42px search field on the ground with a leading icon.",
+      "html": "<label class=\"ds-search\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"square\" stroke-linejoin=\"miter\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><input placeholder=\"Search a port, a project...\"></label>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 10px; border: 1px solid var(--line, #2b2f52); border-radius: 0; background: var(--bg, #0e1024); color: var(--muted, #a9acc9); } .ds-search input { flex: 1; min-width: 0; padding: 8px 0; border: 0; outline: none; background: transparent; color: var(--text, #f4f3ff); font-family: \"Archivo Variable\", sans-serif; font-size: 13px; } .ds-search input::placeholder { color: var(--quiet, #8d90b3); } .ds-search:focus-within { outline: 3px solid var(--focus, #b7b7ff); outline-offset: 3px; }"
+    },
+    {
+      "name": "Rail Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Navy rail items with mono counts; active is solid violet; the To review count sits on a yellow tab.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-nav ds-active\">Overview <span class=\"ds-nav-count\">6</span></button><button class=\"ds-nav\">Servers <span class=\"ds-nav-count\">4</span></button><button class=\"ds-nav\">To review <span class=\"ds-nav-count ds-warn\">2</span></button></nav>",
+      "css": ".ds-rail { width: 244px; padding: 18px; background: #181b34; } .ds-nav { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; padding: 8px 10px; margin-bottom: 3px; border: 0; border-radius: 0; background: transparent; color: #c7c9dc; text-align: left; font-family: \"Archivo Variable\", sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; } .ds-nav:hover { background: #23264a; color: #fff; } .ds-nav:focus-visible { outline: 3px solid #b7b7ff; outline-offset: 3px; } .ds-active { background: #6161ff; color: #fff; font-weight: 700; } .ds-active:focus-visible { outline-color: #fff; } .ds-nav-count { margin-left: auto; font-family: \"JetBrains Mono Variable\", monospace; font-size: 12px; } .ds-warn { padding: 0 5px; background: #ffcc00; color: #111226; font-weight: 700; }"
+    },
+    {
+      "name": "Heat Strip",
+      "kind": "custom",
+      "refersTo": "heat-cell-hot",
+      "description": "Processes row: the CPU ident cell and sixty heat cells on one mint ramp, ending at the now line.",
+      "html": "<div class=\"ds-heat-row\"><span class=\"ds-cpu ds-h3\">18.9</span><span class=\"ds-trail\"><span class=\"ds-strip\"><i class=\"ds-h0\"></i><i class=\"ds-h1\"></i><i class=\"ds-h1\"></i><i class=\"ds-h2\"></i><i class=\"ds-h2\"></i><i class=\"ds-h3\"></i><i class=\"ds-h4\"></i><i class=\"ds-h3\"></i><i class=\"ds-h2\"></i><i class=\"ds-h3\"></i><i class=\"ds-h3\"></i><i class=\"ds-h2\"></i></span></span></div>",
+      "css": ".ds-heat-row { display: flex; align-items: center; gap: 12px; } .ds-cpu { display: inline-grid; place-items: center; width: 54px; height: 26px; font-family: \"JetBrains Mono Variable\", monospace; font-variant-numeric: tabular-nums; font-size: 12.5px; font-weight: 700; color: var(--h3-ink, #111226); } .ds-trail { position: relative; flex: 1; display: flex; align-items: center; padding-right: 12px; height: 34px; } .ds-trail::after { content: \"\"; position: absolute; top: 0; right: 8px; bottom: 0; width: 2px; background: var(--now, #6161ff); } .ds-strip { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 1px; width: 100%; height: 20px; } .ds-h0 { background: var(--h0, #171a3c); } .ds-h1 { background: var(--h1, #0f3b31); } .ds-h2 { background: var(--h2, #0b6a4b); } .ds-h3 { background: var(--h3, #009a59); } .ds-h4 { background: var(--h4, #00ca72); }"
+    },
+    {
+      "name": "Age Meter",
+      "kind": "custom",
+      "refersTo": "block-review",
+      "description": "Simplified view: a flat bar filling to the review threshold, yellow and keyed once past it.",
+      "html": "<div class=\"ds-age\"><span class=\"ds-meter\"><span style=\"width:55%\"></span></span><span class=\"ds-age-value\">4 h 24</span></div><div class=\"ds-age ds-past\"><span class=\"ds-meter\"><span style=\"width:100%\"></span></span><span class=\"ds-age-value\"><span class=\"ds-key\"></span>10 h 12</span></div>",
+      "css": ".ds-age { display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 12px; margin-bottom: 10px; } .ds-meter { display: flex; height: 6px; background: var(--rule, #23264a); } .ds-meter > span { background: var(--meter, #a9acc9); } .ds-past .ds-meter > span { background: var(--yellow, #ffcc00); } .ds-age-value { display: inline-flex; align-items: center; gap: 6px; font-family: \"JetBrains Mono Variable\", monospace; font-variant-numeric: tabular-nums; font-size: 12.5px; font-weight: 600; color: var(--text, #f4f3ff); } .ds-key { width: 8px; height: 8px; background: var(--yellow, #ffcc00); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Programme Guide",
+    "overview": "Every service is a channel on a broadcast programme guide. Its port is the channel number, shown as a square colour ident; its lifetime is a programme block running along one shared time axis up to a violet \"now\" line. The Processes view uses the same grammar: each application is a row whose last two minutes of CPU run as a strip of heat cells into the same now line. The world refuses the category default of stat cards over a table: counts live in filter chips, measurements live in rows and strips.\n\nThe system is dark-first (used at night beside a dark terminal and editor) and the light theme follows macOS at the same finish. Density is high and tabular: fixed per-row furniture, mono figures, no ornament around measurements. Colour is quarantined to marks (idents, blocks, keys, meters, the now line, stop squares); text stays ink or secondary gray. Every box is square, every contour is 1px, and there are no offset shadows. The human rationale, in French, lives in `docs/design-decisions.md`; product truth lives in `PRODUCT.md`. This file is the agent-facing system record and does not repeat them.\n\nTwo views share one vocabulary: the **programme guide** (default) and the **simplified view**, switched by the `simpleView` setting and by the \"Simplified view\" toggle in the top bar. The simplified view is the same world with less furniture, never a second style.",
+    "keyCharacteristics": [
+      "Square everything: `border-radius: 0` on every element and pseudo-element, including redrawn checkboxes, selects and Lucide icon caps.",
+      "Four Monday hues with strict jobs: mint server, violet container and now line and selection and focus, yellow status only, pink stop only.",
+      "A navy rail (`sidebar`) that anchors navigation in both themes.",
+      "Archivo Variable with condensed widths for headings and names; JetBrains Mono Variable for ports, PIDs, figures, durations and commands.",
+      "One shared time axis per view; length on the axis is exact duration.",
+      "Flat surfaces separated by tonal steps (`raise`, `head`) and 1px lines."
+    ],
+    "rules": [
+      { "name": "The One Job Rule", "body": "Each Monday hue has one meaning. Mint is a server, violet is a container or \"now\" or selection or focus, yellow is a status that needs a look, pink is stop. A new feature reuses a meaning or uses a neutral; it never paints a hue for decoration.", "section": "colors" },
+      { "name": "The Ink Text Rule", "body": "Text stays `text`, `muted` or `quiet`. It never takes a series colour. On mint, yellow and pink the text is `ink`; on violet it is white.", "section": "colors" },
+      { "name": "The Fact, Not Alarm Rule", "body": "Network exposure is an outlined square (a 1.5px inset stroke in `currentColor`), next to the filled mint \"local\" square. It is never yellow or pink.", "section": "colors" },
+      { "name": "The Ink Edge Rule", "body": "In light mode, yellow marks (ident, block, keys, age meter) carry a 1px `ink` edge; the review threshold line turns ink.", "section": "colors" },
+      { "name": "The Mono Number Rule", "body": "Every port, PID, duration, percentage, byte count, time and command is JetBrains Mono with tabular figures. Words are Archivo.", "section": "typography" },
+      { "name": "The Condensed Name Rule", "body": "Width compression is for headings and names only (84%, 85%, 92%); body text stays at normal width.", "section": "typography" },
+      { "name": "The Flat Ledger Rule", "body": "No offset or decorative shadows, no blur, no layout motion on hover. If something needs to stand out, change its tone or its 1px contour.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** keep `border-radius: 0` on every new element, pseudo-element and native control; redraw any control WebKit rounds.",
+      "**Do** colour a service by the One Job Rule: mint server, violet container, yellow past the review threshold, `tool-block` gray for tools.",
+      "**Do** put every number, port, PID, duration and command in JetBrains Mono with tabular figures.",
+      "**Do** place time-based marks on the view's shared axis and end them at the 2px violet now line.",
+      "**Do** pair every colour state with a word or icon, and give yellow a 1px ink edge in light mode.",
+      "**Do** separate surfaces with tonal steps (`raise`, `head`) and 1px `line` / `rule` contours.",
+      "**Do** build a new view in both the programme guide and the simplified view, with the same tokens.",
+      "**Do** keep text in `text`, `muted` or `quiet`; ink on mint, yellow and pink; white on violet."
+    ],
+    "donts": [
+      "**Don't** round anything, including checkboxes, selects, keys, meters, icons or dialog corners.",
+      "**Don't** use offset shadows, glow or blur; contours are 1px.",
+      "**Don't** use yellow for anything but status, or pink for anything but stop.",
+      "**Don't** show network exposure as a warning colour; it is an outlined square.",
+      "**Don't** put stat cards or coloured count tiles above a list; counts live in filter chips.",
+      "**Don't** colour text with a series hue, or give projects yellow or pink squares.",
+      "**Don't** estimate a missing measurement; show \"—\" and say it is not exposed."
+    ]
+  }
+}

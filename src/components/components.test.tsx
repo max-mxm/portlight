@@ -7,6 +7,7 @@ import { CommandPalette } from "./CommandPalette";
 import { ServiceDetails } from "./ServiceDetails";
 import { ServiceRow } from "./ServiceRow";
 import { ServicesPanel } from "./ServicesPanel";
+import { ViewChips } from "./ViewChips";
 import { ProcessesPanel } from "./ProcessesPanel";
 import { StopConfirmation } from "./StopConfirmation";
 import { I18nProvider } from "../i18n";
@@ -20,7 +21,7 @@ vi.mock("../hooks/useActivity", () => ({
   useActivity: () => {
     const snapshot = activity();
     Object.assign(snapshot.system.sensors, live.sensors);
-    return { snapshot, error: "", refresh: vi.fn() };
+    return { snapshot, history: [], error: "", refresh: vi.fn() };
   },
 }));
 vi.mock("../api", async (original) => ({
@@ -100,23 +101,24 @@ describe("Groupe de projet", () => {
         setConfirm={setConfirm}
         open={vi.fn()}
         reviewHours={8}
+        simple={false}
       />,
     );
   it("replie et déplie un groupe, puis tous les groupes", () => {
     localStorage.clear();
     renderPanel();
     const toggle = screen.getByRole("button", { name: /^shop\s*2 services$/ });
-    expect(screen.getByText("shop-db-1")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "shop-db-1" })).toBeTruthy();
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByText("shop-db-1")).toBeNull();
+    expect(screen.queryByRole("button", { name: "shop-db-1" })).toBeNull();
     // One group still open: the toolbar offers to fold them all.
     fireEvent.click(
       screen.getByRole("button", { name: "Collapse all groups" }),
     );
-    expect(screen.queryByText("shop-db-1")).toBeNull();
+    expect(screen.queryByRole("button", { name: "shop-db-1" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Expand all groups" }));
-    expect(screen.getByText("shop-db-1")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "shop-db-1" })).toBeTruthy();
     localStorage.clear();
   });
   it("arrête le groupe, puis force seulement les processus", () => {
@@ -225,6 +227,10 @@ describe("Ligne de service", () => {
         onOpen={onOpen}
         busy={false}
         disabled={false}
+        simple={false}
+        hours={10}
+        ticks={[]}
+        scannedAt={Date.now()}
       />,
     );
     fireEvent.click(
@@ -238,6 +244,107 @@ describe("Ligne de service", () => {
       screen.getByTitle("Port 5432: service without a web page"),
     ).toBeTruthy();
     expect(screen.getByText("0.4% · 180 MB")).toBeTruthy();
+  });
+});
+
+describe("Vue simplifiée", () => {
+  const row = (elapsedSeconds: number) =>
+    render(
+      <ServiceRow
+        service={fixture({ ports: [3000], elapsedSeconds })}
+        reviewHours={8}
+        onDetails={vi.fn()}
+        onStop={vi.fn()}
+        onOpen={vi.fn()}
+        busy={false}
+        disabled={false}
+        simple
+        hours={10}
+        ticks={[]}
+        scannedAt={Date.now()}
+      />,
+    );
+  it("remplit la jauge d’âge jusqu’au seuil, puis signale la vérification", () => {
+    const { container } = row(4 * 3600);
+    const meter = container.querySelector<HTMLElement>(".age-meter > span")!;
+    expect(meter.style.width).toBe("50%");
+    expect(container.querySelector(".age.review")).toBeNull();
+    expect(container.querySelector(".track")).toBeNull();
+    document.body.innerHTML = "";
+    const old = row(30 * 3600).container;
+    expect(old.querySelector(".age.review")).toBeTruthy();
+    expect(old.textContent).toContain("past 8 h");
+  });
+  it("place le service sur la grille, plus ancien que la fenêtre", () => {
+    const { container } = render(
+      <ServiceRow
+        service={fixture({ ports: [3000], elapsedSeconds: 30 * 3600 })}
+        reviewHours={8}
+        onDetails={vi.fn()}
+        onStop={vi.fn()}
+        onOpen={vi.fn()}
+        busy={false}
+        disabled={false}
+        simple={false}
+        hours={10}
+        ticks={[0.5]}
+        scannedAt={Date.now()}
+      />,
+    );
+    const block = container.querySelector<HTMLElement>(".block")!;
+    expect(block.className).toContain("review");
+    expect(block.style.left).toBe("0%");
+    expect(container.querySelector(".block-arrow")).toBeTruthy();
+    expect(
+      parseFloat(
+        container.querySelector<HTMLElement>(".threshold-line")!.style.left,
+      ),
+    ).toBeCloseTo(20);
+  });
+  it("garde les chiffres du Mac sur une ligne, sans historique", () => {
+    render(
+      <ProcessesPanel
+        paused={false}
+        services={[]}
+        busy={null}
+        setBusy={vi.fn()}
+        setToast={vi.fn()}
+        record={vi.fn()}
+        simple
+      />,
+    );
+    const strip = screen
+      .getByRole("region", { name: "Load of this Mac" })
+      .textContent?.replace(/\u00a0/g, " ");
+    expect(strip).toContain("30 % prog · 10 % kernel");
+    expect(strip).toContain("of 16 GB · normal pressure");
+    expect(strip).toContain("65 °C");
+    expect(document.querySelector(".heat-strip")).toBeNull();
+    expect(document.querySelector(".cpu-chart")).toBeNull();
+  });
+});
+
+describe("Filtres", () => {
+  it("compte les services par vue et navigue", () => {
+    const navigate = vi.fn();
+    const old = fixture({ id: "old", elapsedSeconds: 40 * 3600 });
+    render(
+      <ViewChips
+        view="all"
+        devServices={[fixture(), old, fixture({ id: "db", kind: "docker" })]}
+        oldServices={[old]}
+        navigate={navigate}
+        reviewHours={8}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "All 3" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "To review 1" }));
+    expect(navigate).toHaveBeenCalledWith("old");
+    expect(screen.getByRole("button", { name: "Docker 1" })).toBeTruthy();
   });
 });
 
@@ -321,6 +428,10 @@ describe("Langue", () => {
           onOpen={vi.fn()}
           busy={false}
           disabled={false}
+          simple={false}
+          hours={10}
+          ticks={[]}
+          scannedAt={Date.now()}
         />
       </I18nProvider>,
     );
@@ -341,6 +452,7 @@ describe("Processus", () => {
         setBusy={vi.fn()}
         setToast={vi.fn()}
         record={record}
+        simple={false}
       />,
     );
     const load = screen.getByRole("region", { name: "Load of this Mac" });
@@ -390,6 +502,7 @@ describe("Processus", () => {
             setBusy={vi.fn()}
             setToast={vi.fn()}
             record={vi.fn()}
+            simple={false}
           />
         </I18nProvider>,
       );
@@ -419,7 +532,7 @@ describe("Processus", () => {
       expect(text).toContain("16,7 WMac entier · sur batterie");
       expect(
         screen.getByTitle(/macOS réduit les performances/).className,
-      ).toContain("pressure");
+      ).toContain("warn");
     });
 
     it("n’invente rien sur un Mac qui n’expose pas ses capteurs", () => {

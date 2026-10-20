@@ -14,10 +14,12 @@ export function SettingsPanel({
   settings,
   save,
   setLanguage,
+  setSimple,
 }: {
   settings: Settings;
   save: (next: Settings) => Promise<Settings>;
   setLanguage: (language: Language) => void;
+  setSimple: (simple: boolean) => void;
 }) {
   const t = useT();
   const l = t.settings;
@@ -99,6 +101,17 @@ export function SettingsPanel({
           ))}
         </select>
         <p>{l.languageText}</p>
+      </div>
+      <div className="field check-field">
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.simpleView}
+            onChange={(e) => setSimple(e.target.checked)}
+          />
+          {l.simpleView}
+        </label>
+        <p>{l.simpleViewText}</p>
       </div>
       <form onSubmit={(e) => void submit(e)}>
         <div className="field">

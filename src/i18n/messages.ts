@@ -77,9 +77,11 @@ export const en = {
     live: "Auto refresh",
     resume: "Resume refresh",
     pause: "Pause refresh",
+    simpleView: "Simplified view",
+    simpleViewHelp:
+      "Compact lists, without the programme guide or the CPU history",
   },
   page: {
-    eyebrow: "YOUR LOCAL ENVIRONMENT",
     refresh: "Refresh",
     scanning: "Scanning…",
     webTitle: "Open the Mac app to scan your ports.",
@@ -91,7 +93,7 @@ export const en = {
     legendNetwork:
       "Network: listens on all interfaces, depending on the firewall",
     footer: "No server · No account · On your Mac",
-    footerActions: "Actions at your fingertips",
+    footerActions: "Quick actions",
     closeNotification: "Close notification",
     gone: "This service is no longer running. Its ports are free.",
     historyGroup: (name: string) => `${name} and its launcher`,
@@ -100,22 +102,35 @@ export const en = {
     byAge: "By uptime",
   },
   overview: {
-    summary: "Environment summary",
-    portsUsed: "Ports in use",
-    inDevelopment: "in development",
-    activeServers: "Active servers",
-    localProcesses: "local processes",
-    containers: "Docker containers",
-    withPorts: "with published ports",
+    summary: "Filter the services",
+    all: "All",
+    servers: "Servers",
+    containers: "Docker",
     toReview: "To review",
-    runningFor: (hours: number) => `running for ${hours}+ h`,
-    banner: (count: number, hours: number) =>
-      count === 1
-        ? `One server has been running for more than ${hours} hours.`
-        : `${count} servers have been running for more than ${hours} hours.`,
-    bannerText: "A closed terminal does not always mean a stopped server.",
-    review: "Review",
+    reviewHelp: (hours: number) =>
+      `Development servers running for ${hours} h or more`,
   },
+  guide: {
+    port: "Port",
+    service: "Service",
+    up: "Up",
+    timeline: (hours: number) => `Start times over the last ${hours} hours`,
+    now: (time: string) => `Now ${time}`,
+    threshold: (hours: number) => `${hours} h · To review`,
+    thresholdShort: (hours: number) => `${hours} h`,
+    since: (label: string) => `since ${label}`,
+    past: (hours: number) => `past ${hours} h`,
+    legendServer: "Development server",
+    legendContainer: "Docker container",
+    legendTool: "Tool or macOS service",
+    legendReview: (hours: number) =>
+      `Running past the ${hours} h review threshold`,
+    legendNow: "Now",
+    window: (hours: number) => `Last ${hours} h · older starts point left`,
+    ageLegend: (hours: number) =>
+      `Bar: time up, full at the ${hours} h review threshold`,
+  },
+
   services: {
     label: "Listening services",
     running: "Running services",
@@ -239,8 +254,23 @@ export const en = {
     label: "Processes of this Mac",
     summary: "Load of this Mac",
     cpu: "CPU",
-    cpuSplit: (programs: number, kernel: number) =>
-      `${programs} % programs · ${kernel} % kernel`,
+    cpuPrograms: (percent: number) => `${percent} % programs`,
+    cpuShort: (programs: number, kernel: number) =>
+      `${programs} % prog · ${kernel} % kernel`,
+    memoryOf: (total: string) => `of ${total}`,
+    cpuChart: "CPU · share of the whole Mac",
+    cpuChartLabel: (now: number, peak: number) =>
+      `CPU over the last 2 minutes: ${now} % now, ${peak} % at most`,
+    programs: "Programs",
+    kernel: "Kernel",
+    lastMinutes: "Last 2 min",
+    heatLegend: "CPU every 2 s",
+    coreShare: (cores: number, share: string) =>
+      `one core of ${cores} = ${share} %`,
+    ticks: ["−2 min", "−90 s", "−60 s", "−30 s", "now"],
+    swapShort: "on disk",
+    noFanShort: "none",
+    cpuKernel: (percent: number) => `${percent} % kernel`,
     unattributed: "macOS kernel (unattributed)",
     unattributedDetail:
       "kernel_task, interrupts, memory compression, brief processes",
@@ -385,6 +415,9 @@ export const en = {
     save: "Save",
     saved: "Settings saved.",
     savedNextScan: "Settings saved. The next scan applies them.",
+    simpleView: "Simplified view",
+    simpleViewText:
+      "Compact lists: services without the programme guide, Processes without the CPU history.",
     autostart: "Open Portlight at login",
     autostartText:
       "Portlight starts in the menu bar, without opening a window. Closing the window keeps Portlight in the menu bar.",
@@ -532,9 +565,11 @@ export const fr: Messages = {
     live: "Actualisation auto",
     resume: "Reprendre l’actualisation",
     pause: "Mettre l’actualisation en pause",
+    simpleView: "Vue simplifiée",
+    simpleViewHelp:
+      "Listes compactes, sans grille des programmes ni historique processeur",
   },
   page: {
-    eyebrow: "VOTRE ENVIRONNEMENT LOCAL",
     refresh: "Actualiser",
     scanning: "Analyse…",
     webTitle: "Ouvrez l’application Mac pour analyser vos ports.",
@@ -546,7 +581,7 @@ export const fr: Messages = {
     legendNetwork:
       "Réseau : écoute sur toutes les interfaces, selon le pare-feu",
     footer: "Sans serveur · Sans compte · Sur votre Mac",
-    footerActions: "Les actions au bout des doigts",
+    footerActions: "Actions rapides",
     closeNotification: "Fermer la notification",
     gone: "Ce service ne tourne plus. Ses ports sont libérés.",
     historyGroup: (name) => `${name} et son lanceur`,
@@ -555,22 +590,36 @@ export const fr: Messages = {
     byAge: "Par durée d’activité",
   },
   overview: {
-    summary: "Résumé de l’environnement",
-    portsUsed: "Ports utilisés",
-    inDevelopment: "en développement",
-    activeServers: "Serveurs actifs",
-    localProcesses: "processus locaux",
-    containers: "Conteneurs Docker",
-    withPorts: "avec ports publiés",
+    summary: "Filtrer les services",
+    all: "Tous",
+    servers: "Serveurs",
+    containers: "Docker",
     toReview: "À vérifier",
-    runningFor: (hours) => `actifs depuis + de ${hours} h`,
-    banner: (count, hours) =>
-      count === 1
-        ? `Un serveur tourne depuis plus de ${hours} heures.`
-        : `${count} serveurs tournent depuis plus de ${hours} heures.`,
-    bannerText: "Un terminal fermé ne signifie pas toujours un serveur arrêté.",
-    review: "Vérifier",
+    reviewHelp: (hours) =>
+      `Serveurs de développement actifs depuis ${hours} h ou plus`,
   },
+  guide: {
+    port: "Port",
+    service: "Service",
+    up: "Actif",
+    timeline: (hours) =>
+      `Heures de lancement sur les ${hours} dernières heures`,
+    now: (time) => `Maintenant ${time}`,
+    threshold: (hours) => `${hours} h · À vérifier`,
+    thresholdShort: (hours) => `${hours} h`,
+    since: (label) => `depuis ${label}`,
+    past: (hours) => `au-delà de ${hours} h`,
+    legendServer: "Serveur de développement",
+    legendContainer: "Conteneur Docker",
+    legendTool: "Outil ou service macOS",
+    legendReview: (hours) => `Au-delà du seuil de ${hours} h`,
+    legendNow: "Maintenant",
+    window: (hours) =>
+      `${hours} dernières heures · les lancements plus anciens pointent à gauche`,
+    ageLegend: (hours) =>
+      `Barre : durée d’activité, pleine au seuil de ${hours} h`,
+  },
+
   services: {
     label: "Services en écoute",
     running: "Services en cours",
@@ -694,8 +743,21 @@ export const fr: Messages = {
     label: "Processus de ce Mac",
     summary: "Charge de ce Mac",
     cpu: "Processeur",
-    cpuSplit: (programs, kernel) =>
-      `${programs} % programmes · ${kernel} % noyau`,
+    cpuPrograms: (percent) => `${percent} % programmes`,
+    cpuShort: (programs, kernel) => `${programs} % prog. · ${kernel} % noyau`,
+    memoryOf: (total) => `sur ${total}`,
+    cpuChart: "Processeur · part du Mac entier",
+    cpuChartLabel: (now, peak) =>
+      `Processeur sur les 2 dernières minutes : ${now} % maintenant, ${peak} % au maximum`,
+    programs: "Programmes",
+    kernel: "Noyau",
+    lastMinutes: "2 dernières min",
+    heatLegend: "Processeur toutes les 2 s",
+    coreShare: (cores, share) => `un cœur sur ${cores} = ${share} %`,
+    ticks: ["−2 min", "−90 s", "−60 s", "−30 s", "maint."],
+    swapShort: "sur le disque",
+    noFanShort: "aucun",
+    cpuKernel: (percent) => `${percent} % noyau`,
     unattributed: "Noyau macOS (non attribué)",
     unattributedDetail:
       "kernel_task, interruptions, compression mémoire, processus éphémères",
@@ -842,6 +904,9 @@ export const fr: Messages = {
     save: "Enregistrer",
     saved: "Réglages enregistrés.",
     savedNextScan: "Réglages enregistrés. Le prochain relevé les applique.",
+    simpleView: "Vue simplifiée",
+    simpleViewText:
+      "Listes compactes : les services sans grille des programmes, Processus sans historique processeur.",
     autostart: "Ouvrir Portlight à la connexion",
     autostartText:
       "Portlight démarre dans la barre des menus, sans ouvrir de fenêtre. Fermer la fenêtre garde Portlight dans la barre des menus.",

@@ -81,3 +81,33 @@ export function allRows(snapshot: ActivitySnapshot): ActivityRow[] {
     ].map((process) => ({ kind: "process" as const, id: process.id, process })),
   ];
 }
+
+/** CPU of the Mac and of every line at one sample. */
+export interface CpuSample {
+  programs: number;
+  kernel: number;
+  unattributed: number;
+  rows: Record<string, number>;
+}
+/** Two minutes at one sample every 2 s. */
+export const HISTORY = 60;
+
+/** Appends a sample and keeps the last ones, oldest first. */
+export function addSample(
+  history: CpuSample[],
+  snapshot: ActivitySnapshot,
+  max = HISTORY,
+): CpuSample[] {
+  const rows: Record<string, number> = {};
+  for (const row of allRows(snapshot)) rows[row.id] = rowValues(row).cpuPercent;
+  const s = snapshot.system;
+  return [
+    ...history,
+    {
+      programs: s.programsPercent,
+      kernel: s.kernelPercent,
+      unattributed: s.unattributedPercent,
+      rows,
+    },
+  ].slice(-max);
+}
